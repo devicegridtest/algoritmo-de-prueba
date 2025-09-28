@@ -432,7 +432,7 @@ if enable_news and NEWSAPI_ENABLED:
     st.markdown("---")
     st.subheader("📰 Noticias Relevantes")
     with st.spinner("🔍 Cargando noticias..."):
-        api_key = 'e319a19a0275445d87f101ee06d40374'
+        api_key = ''
         if not api_key or api_key == 'a0172d10de78441d81ea5f95ec12925e':
             st.info("ℹ️ Clave de NewsAPI no configurada.")
         else:
@@ -541,4 +541,5 @@ fig.update_layout(
 st.plotly_chart(fig, use_container_width=True)
 
 st.markdown("---")
+
 st.caption("🔁 Esta app se actualiza automáticamente cada 60 segundos.")
