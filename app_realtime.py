@@ -432,9 +432,10 @@ if enable_news and NEWSAPI_ENABLED:
     st.markdown("---")
     st.subheader("📰 Noticias Relevantes")
     with st.spinner("🔍 Cargando noticias..."):
-        api_key = ''
-        if not api_key or api_key == 'a0172d10de78441d81ea5f95ec12925e':
-            st.info("ℹ️ Clave de NewsAPI no configurada.")
+        # ✅ USAR SECRETS EN VEZ DE CLAVE FIJA
+        api_key = st.secrets.get("NEWSAPI_KEY", "")
+        if not api_key:
+            st.info("ℹ️ Clave de NewsAPI no configurada. Añádela en Secrets de Streamlit Cloud.")
         else:
             try:
                 crypto_map = {
@@ -541,5 +542,4 @@ fig.update_layout(
 st.plotly_chart(fig, use_container_width=True)
 
 st.markdown("---")
-
 st.caption("🔁 Esta app se actualiza automáticamente cada 60 segundos.")
