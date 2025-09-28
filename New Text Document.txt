@@ -1,0 +1,10 @@
+streamlit run app_realtime.py
+
+8009169831:AAFooJBs8P0rqIGKEoLycSMe-jcqy1zKwDU
+
+
+pip install streamlit-autorefresh
+
+
+
+e319a19a0275445d87f101ee06d40374

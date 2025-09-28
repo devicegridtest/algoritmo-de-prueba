@@ -1,0 +1,11 @@
+streamlit==1.32.0
+yfinance==0.2.49
+numpy>=1.26.4  # 👈 Usa >= para evitar problemas de compilación
+pandas==2.1.4
+plotly==5.18.0
+requests==2.31.0
+scikit-learn==1.4.1
+tensorflow==2.15.0
+prophet==1.1.4
+newsapi-python==0.2.13
+streamlit-autorefresh==0.1.2
