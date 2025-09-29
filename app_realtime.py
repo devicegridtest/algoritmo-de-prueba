@@ -45,7 +45,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- FUTURISTIC CSS ---
+# --- FUTURISTIC CSS (including mobile keyboard fix) ---
 st.markdown("""
 <style>
 /* Animated dark background */
@@ -125,8 +125,8 @@ h1, h2, h3 {
     padding: 10px;
     box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
 }
-            
-           /* Evitar que el teclado se abra en selectbox en móviles */
+
+/* 🔑 FIX: Prevent keyboard from opening on mobile selectbox */
 .stSelectbox > div > div > input {
     -webkit-user-select: none !important;
     -moz-user-select: none !important;
@@ -134,18 +134,16 @@ h1, h2, h3 {
     user-select: none !important;
     pointer-events: none !important;
 }
-
-/* Opcional: mejorar apariencia en móviles */
 .stSelectbox {
     -webkit-appearance: none;
     -moz-appearance: none;
     appearance: none;
-} 
+}
 </style>
 """, unsafe_allow_html=True)
 
 # --- DGT LOGO ---
-logo_base64 = "data:image/png;base64,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"
+logo_base64 = "image/png;base64,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"
 
 st.markdown(f"""
 <div style="display: flex; justify-content: center; align-items: center; gap: 15px; margin-bottom: 20px; padding: 10px; background: rgba(0, 255, 255, 0.05); border-radius: 10px; box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);">
@@ -201,6 +199,8 @@ def add_indicators(df):
     df['MA5'] = df['Close'].rolling(5).mean()
     df['MA10'] = df['Close'].rolling(10).mean()
     df['MA20'] = df['Close'].rolling(20).mean()
+    # Add longer-term EMA for trend
+    df['EMA50'] = df['Close'].ewm(span=50, adjust=False).mean()
     return df
 
 def create_sequences(data, seq_length):
@@ -218,7 +218,7 @@ def load_models():
         from tensorflow.keras.models import Sequential
         from tensorflow.keras.layers import LSTM, Dense, Dropout
         model_lstm = Sequential([
-            LSTM(50, return_sequences=True, input_shape=(60, 7)),
+            LSTM(50, return_sequences=True, input_shape=(60, 8)),  # now 8 features
             Dropout(0.2),
             LSTM(50, return_sequences=False),
             Dropout(0.2),
@@ -244,7 +244,7 @@ if 'data' not in st.session_state:
 if 'last_best_prediction' not in st.session_state:
     st.session_state.last_best_prediction = 0.0
 
-# --- Update data ---
+# --- Update data (for display) ---
 def update_data():
     try:
         data = yf.download(ticker, period=period, interval=interval)
@@ -275,7 +275,7 @@ if st.button("🔄 Force Refresh", use_container_width=True):
     st.session_state.data = update_data()
     st.rerun()
 
-# --- Load data ---
+# --- Load data for display ---
 with st.spinner("🌐 Loading real-time data..."):
     data = update_data()
 
@@ -323,106 +323,120 @@ st.download_button(
     use_container_width=True
 )
 
-# --- Short-term Predictions ---
+# --- Short-term Predictions (using 5d/5m data for better trend) ---
 if len(data) >= 80:
     with st.expander("🤖 Predictions & Accuracy Comparison", expanded=False):
-        features = ['Close', 'RSI', 'MACD', 'Volume', 'MA5', 'MA10', 'MA20']
-        df_features = data[features].copy()
-        from sklearn.preprocessing import MinMaxScaler
-        scaler = MinMaxScaler()
-        scaled_data = scaler.fit_transform(df_features)
-        sequence_length = 60
-        X, y = create_sequences(scaled_data, sequence_length)
-        
-        if len(X) > 0:
-            split = int(0.8 * len(X))
-            X_train, X_test = X[:split], X[split:]
-            y_train, y_test = y[:split], y[split:]
+        # 🔁 Use longer historical data for ML (5 days, 5min)
+        try:
+            data_ml = yf.download(ticker, period="5d", interval="5m")
+            data_ml = add_indicators(data_ml)
+            data_ml.dropna(inplace=True)
+            if len(data_ml) < 80:
+                st.warning("Not enough data for prediction.")
+                data_ml = None
+        except:
+            data_ml = None
+
+        if data_ml is not None and len(data_ml) >= 80:
+            features = ['Close', 'RSI', 'MACD', 'Volume', 'MA5', 'MA10', 'MA20', 'EMA50']
+            df_features = data_ml[features].copy()
+            from sklearn.preprocessing import MinMaxScaler
+            scaler = MinMaxScaler()
+            scaled_data = scaler.fit_transform(df_features)
+            sequence_length = 60
+            X, y = create_sequences(scaled_data, sequence_length)
             
-            predictions = {}
-            metrics = {}
-            
-            # Random Forest
-            def create_sequences_rf(data_array, seq_length):
-                X_rf, y_rf = [], []
-                for i in range(len(data_array) - seq_length):
-                    X_rf.append(data_array[i + seq_length - 1])
-                    y_rf.append(data_array[i + seq_length, 0])
-                return np.array(X_rf), np.array(y_rf)
-            
-            X_rf_all, y_rf_all = create_sequences_rf(scaled_data, sequence_length)
-            if len(X_rf_all) > 0:
-                split_rf = int(0.8 * len(X_rf_all))
-                X_train_rf, y_train_rf = X_rf_all[:split_rf], y_rf_all[:split_rf]
-                X_test_rf, y_test_rf = X_rf_all[split_rf:], y_rf_all[split_rf:]
-            else:
-                X_train_rf = X_test_rf = y_train_rf = y_test_rf = np.array([])
-
-            def inverse_scale_close(scaled_value):
-                return scaler.data_min_[0] + scaled_value * scaler.data_range_[0]
-            
-            if models["Random Forest"] is not None and len(X_train_rf) > 0:
-                models["Random Forest"].fit(X_train_rf, y_train_rf)
-                last_sequence_rf = scaled_data[-1].reshape(1, -1)
-                next_pred_rf_scaled = models["Random Forest"].predict(last_sequence_rf)[0]
-                next_price_rf = inverse_scale_close(next_pred_rf_scaled)
-                predictions["Random Forest"] = float(next_price_rf)
-                y_pred_rf_scaled = models["Random Forest"].predict(X_test_rf)
-                from sklearn.metrics import mean_squared_error, mean_absolute_error
-                metrics["Random Forest"] = {
-                    "RMSE": np.sqrt(mean_squared_error(y_test_rf, y_pred_rf_scaled)),
-                    "MAE": mean_absolute_error(y_test_rf, y_pred_rf_scaled)
-                }
-
-            # LSTM
-            if models["LSTM"] is not None:
-                try:
-                    models["LSTM"].fit(X_train, y_train, epochs=1, batch_size=32, verbose=0)
-                    last_sequence_lstm = scaled_data[-sequence_length:].reshape(1, sequence_length, len(features))
-                    next_pred_lstm_scaled = models["LSTM"].predict(last_sequence_lstm, verbose=0)[0, 0]
-                    next_price_lstm = inverse_scale_close(next_pred_lstm_scaled)
-                    predictions["LSTM"] = float(next_price_lstm)
-                    y_pred_lstm_scaled = models["LSTM"].predict(X_test, verbose=0).flatten()
-                    metrics["LSTM"] = {
-                        "RMSE": np.sqrt(mean_squared_error(y_test, y_pred_lstm_scaled)),
-                        "MAE": mean_absolute_error(y_test, y_pred_lstm_scaled)
-                    }
-                except Exception as e:
-                    st.warning(f"LSTM error: {e}")
-
-            if predictions:
-                st.subheader("📊 Multi-Model Predictions")
-                cols = st.columns(len(predictions))
-                for i, (model_name, pred_price) in enumerate(predictions.items()):
-                    change = ((pred_price - current_price) / current_price) * 100
-                    cols[i].metric(model_name, format_price_dynamic(pred_price), delta=f"{change:.2f}%")
-
-            if metrics:
-                st.subheader("📈 Accuracy Comparison")
-                metric_cols = st.columns(len(metrics))
-                for i, (model_name, metric_dict) in enumerate(metrics.items()):
-                    metric_cols[i].metric(model_name, f"RMSE: {metric_dict['RMSE']:.4f}", delta=f"MAE: {metric_dict['MAE']:.4f}")
-
-            if metrics:
-                best_model = min(metrics.keys(), key=lambda k: metrics[k]['RMSE'])
-                best_prediction = predictions[best_model]
-                st.session_state.best_prediction = best_prediction
-
-                if 'last_best_prediction' not in st.session_state:
-                    st.session_state.last_best_prediction = best_prediction
+            if len(X) > 0:
+                split = int(0.8 * len(X))
+                X_train, X_test = X[:split], X[split:]
+                y_train, y_test = y[:split], y[split:]
+                
+                predictions = {}
+                metrics = {}
+                
+                # Random Forest
+                def create_sequences_rf(data_array, seq_length):
+                    X_rf, y_rf = [], []
+                    for i in range(len(data_array) - seq_length):
+                        X_rf.append(data_array[i + seq_length - 1])
+                        y_rf.append(data_array[i + seq_length, 0])
+                    return np.array(X_rf), np.array(y_rf)
+                
+                X_rf_all, y_rf_all = create_sequences_rf(scaled_data, sequence_length)
+                if len(X_rf_all) > 0:
+                    split_rf = int(0.8 * len(X_rf_all))
+                    X_train_rf, y_train_rf = X_rf_all[:split_rf], y_rf_all[:split_rf]
+                    X_test_rf, y_test_rf = X_rf_all[split_rf:], y_rf_all[split_rf:]
                 else:
-                    last_pred = st.session_state.last_best_prediction
-                    if last_pred != 0:
-                        change = ((best_prediction - last_pred) / last_pred) * 100
-                        if abs(change) > 1.0:
-                            if change > 0:
-                                st.success(f"📈 Prediction ↑ {change:.2f}% → {format_price_dynamic(best_prediction)}")
-                                st.balloons()
-                            else:
-                                st.warning(f"📉 Prediction ↓ {change:.2f}% → {format_price_dynamic(best_prediction)}")
-                    st.session_state.last_best_prediction = best_prediction
+                    X_train_rf = X_test_rf = y_train_rf = y_test_rf = np.array([])
 
-# --- Future Prediction (CORRECTED & WITH DYNAMIC FORMAT) ---
+                def inverse_scale_close(scaled_value):
+                    return scaler.data_min_[0] + scaled_value * scaler.data_range_[0]
+                
+                if models["Random Forest"] is not None and len(X_train_rf) > 0:
+                    models["Random Forest"].fit(X_train_rf, y_train_rf)
+                    last_sequence_rf = scaled_data[-1].reshape(1, -1)
+                    next_pred_rf_scaled = models["Random Forest"].predict(last_sequence_rf)[0]
+                    next_price_rf = inverse_scale_close(next_pred_rf_scaled)
+                    predictions["Random Forest"] = float(next_price_rf)
+                    y_pred_rf_scaled = models["Random Forest"].predict(X_test_rf)
+                    from sklearn.metrics import mean_squared_error, mean_absolute_error
+                    metrics["Random Forest"] = {
+                        "RMSE": np.sqrt(mean_squared_error(y_test_rf, y_pred_rf_scaled)),
+                        "MAE": mean_absolute_error(y_test_rf, y_pred_rf_scaled)
+                    }
+
+                # LSTM
+                if models["LSTM"] is not None:
+                    try:
+                        models["LSTM"].fit(X_train, y_train, epochs=1, batch_size=32, verbose=0)
+                        last_sequence_lstm = scaled_data[-sequence_length:].reshape(1, sequence_length, len(features))
+                        next_pred_lstm_scaled = models["LSTM"].predict(last_sequence_lstm, verbose=0)[0, 0]
+                        next_price_lstm = inverse_scale_close(next_pred_lstm_scaled)
+                        predictions["LSTM"] = float(next_price_lstm)
+                        y_pred_lstm_scaled = models["LSTM"].predict(X_test, verbose=0).flatten()
+                        metrics["LSTM"] = {
+                            "RMSE": np.sqrt(mean_squared_error(y_test, y_pred_lstm_scaled)),
+                            "MAE": mean_absolute_error(y_test, y_pred_lstm_scaled)
+                        }
+                    except Exception as e:
+                        st.warning(f"LSTM error: {e}")
+
+                if predictions:
+                    st.subheader("📊 Multi-Model Predictions")
+                    cols = st.columns(len(predictions))
+                    for i, (model_name, pred_price) in enumerate(predictions.items()):
+                        change = ((pred_price - current_price) / current_price) * 100
+                        cols[i].metric(model_name, format_price_dynamic(pred_price), delta=f"{change:.2f}%")
+
+                if metrics:
+                    st.subheader("📈 Accuracy Comparison")
+                    metric_cols = st.columns(len(metrics))
+                    for i, (model_name, metric_dict) in enumerate(metrics.items()):
+                        metric_cols[i].metric(model_name, f"RMSE: {metric_dict['RMSE']:.4f}", delta=f"MAE: {metric_dict['MAE']:.4f}")
+
+                if metrics:
+                    best_model = min(metrics.keys(), key=lambda k: metrics[k]['RMSE'])
+                    best_prediction = predictions[best_model]
+                    st.session_state.best_prediction = best_prediction
+
+                    if 'last_best_prediction' not in st.session_state:
+                        st.session_state.last_best_prediction = best_prediction
+                    else:
+                        last_pred = st.session_state.last_best_prediction
+                        if last_pred != 0:
+                            change = ((best_prediction - last_pred) / last_pred) * 100
+                            if abs(change) > 1.0:
+                                if change > 0:
+                                    st.success(f"📈 Prediction ↑ {change:.2f}% → {format_price_dynamic(best_prediction)}")
+                                    st.balloons()
+                                else:
+                                    st.warning(f"📉 Prediction ↓ {change:.2f}% → {format_price_dynamic(best_prediction)}")
+                        st.session_state.last_best_prediction = best_prediction
+        else:
+            st.info("Not enough historical data for prediction.")
+
+# --- Future Prediction (30-day history, hourly) ---
 with st.expander("📈 Future Prediction (3-day history)", expanded=False):
     try:
         from prophet import Prophet
@@ -536,6 +550,7 @@ fig.add_trace(candlestick, row=1, col=1)
 fig.add_trace(go.Scatter(x=data.index, y=data['MA5'], name='MA5', line=dict(color='orange')), row=1, col=1)
 fig.add_trace(go.Scatter(x=data.index, y=data['MA10'], name='MA10', line=dict(color='blue')), row=1, col=1)
 fig.add_trace(go.Scatter(x=data.index, y=data['MA20'], name='MA20', line=dict(color='purple')), row=1, col=1)
+fig.add_trace(go.Scatter(x=data.index, y=data['EMA50'], name='EMA50', line=dict(color='cyan', dash='dot')), row=1, col=1)
 
 fig.add_hline(y=current_price, line_dash="dash", line_color="yellow", 
               annotation_text=f"Current: {format_price_dynamic(current_price)}", 
