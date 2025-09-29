@@ -612,48 +612,58 @@ st.markdown(
     """
     <style>
     .neon-arrow {
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        z-index: 9999;
         font-size: 16px;
         font-weight: bold;
         color: #0ff;
         text-shadow: 0 0 8px #0ff, 0 0 12px #0ff;
         cursor: pointer;
-        padding: 8px;
+        padding: 6px;
         border-radius: 4px;
+        background: rgba(0, 0, 0, 0.2);
         transition: all 0.2s ease;
     }
     .neon-arrow:hover {
         text-shadow: 0 0 12px #0ff, 0 0 20px #0ff;
-        transform: scale(1.1);
+        transform: scale(1.15);
     }
     </style>
 
     <script>
     // Wait for DOM to be ready
-    const observer = new MutationObserver(() => {
-        const hamburger = document.querySelector('.css-1v0mbdj');
-        if (hamburger && !hamburger.classList.contains('neon-replaced')) {
-            // Hide the original hamburger
-            hamburger.style.visibility = 'hidden';
-            hamburger.style.position = 'absolute';
-            hamburger.style.opacity = '0';
-
-            // Create our custom neon >> icon
-            const neonArrow = document.createElement('span');
-            neonArrow.className = 'neon-arrow neon-replaced';
+    const checkAndReplace = () => {
+        // 🔍 Buscar el botón del sidebar usando un selector más confiable
+        const sidebarBtn = document.querySelector('button[kind="header"]') ||
+                           document.querySelector('button[title="Open sidebar"]') ||
+                           document.querySelector('button[aria-label="Open sidebar"]');
+        
+        if (sidebarBtn && !window.neonArrowAdded) {
+            // Ocultar el botón original
+            sidebarBtn.style.display = 'none';
+            
+            // Crear el ícono personalizado
+            const neonArrow = document.createElement('div');
+            neonArrow.className = 'neon-arrow';
             neonArrow.innerHTML = '>>';
             neonArrow.onclick = () => {
-                // Trigger the original toggle
-                hamburger.click();
+                // Simular clic en el botón original
+                sidebarBtn.click();
             };
-
-            // Insert before the original hamburger
-            hamburger.parentNode.insertBefore(neonArrow, hamburger);
-
-            observer.disconnect();
+            
+            document.body.appendChild(neonArrow);
+            window.neonArrowAdded = true;
         }
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
+    };
+
+    // Ejecutar inmediatamente y luego cada 500ms hasta que se encuentre el botón
+    checkAndReplace();
+    const interval = setInterval(checkAndReplace, 500);
+    setTimeout(() => clearInterval(interval), 5000); // Detener después de 5s
     </script>
     """,
     unsafe_allow_html=True
 )
+
