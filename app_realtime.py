@@ -607,40 +607,23 @@ st.plotly_chart(fig, use_container_width=True)
 st.markdown("---")
 st.caption("🔁 This app auto-refreshes every 60 seconds.")
 
-# --- 💡 JavaScript to replace the sidebar toggle icon with a custom ">>" button ---
+# --- 💡 JavaScript to replace the sidebar toggle icon with a neon ">>" ---
 st.markdown(
     """
     <style>
-    .custom-sidebar-toggle {
-        position: fixed;
-        top: 10px;
-        left: 10px;
-        z-index: 9999;
-        background: linear-gradient(45deg, #00f2fe, #4facfe);
-        color: #000;
+    .neon-arrow {
+        font-size: 16px;
         font-weight: bold;
-        border: none;
-        border-radius: 8px;
-        padding: 8px 16px;
-        font-size: 18px;
-        box-shadow: 0 0 15px rgba(0, 255, 255, 0.7);
+        color: #0ff;
+        text-shadow: 0 0 8px #0ff, 0 0 12px #0ff;
         cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: all 0.3s ease;
-        text-decoration: none;
+        padding: 8px;
+        border-radius: 4px;
+        transition: all 0.2s ease;
     }
-    .custom-sidebar-toggle:hover {
-        background: linear-gradient(45deg, #4facfe, #00f2fe);
-        box-shadow: 0 0 25px rgba(0, 255, 255, 1);
-        transform: scale(1.05);
-    }
-    .custom-sidebar-toggle span {
-        font-size: 20px;
-        font-weight: bold;
-        color: #000;
-        text-shadow: 0 0 8px #0ff;
+    .neon-arrow:hover {
+        text-shadow: 0 0 12px #0ff, 0 0 20px #0ff;
+        transform: scale(1.1);
     }
     </style>
 
@@ -648,23 +631,23 @@ st.markdown(
     // Wait for DOM to be ready
     const observer = new MutationObserver(() => {
         const hamburger = document.querySelector('.css-1v0mbdj');
-        if (hamburger) {
+        if (hamburger && !hamburger.classList.contains('neon-replaced')) {
             // Hide the original hamburger
             hamburger.style.visibility = 'hidden';
             hamburger.style.position = 'absolute';
             hamburger.style.opacity = '0';
 
-            // Create our custom button
-            const customBtn = document.createElement('button');
-            customBtn.className = 'custom-sidebar-toggle';
-            customBtn.innerHTML = '<span>>></span>';
-            customBtn.onclick = () => {
+            // Create our custom neon >> icon
+            const neonArrow = document.createElement('span');
+            neonArrow.className = 'neon-arrow neon-replaced';
+            neonArrow.innerHTML = '>>';
+            neonArrow.onclick = () => {
                 // Trigger the original toggle
                 hamburger.click();
             };
 
             // Insert before the original hamburger
-            hamburger.parentNode.insertBefore(customBtn, hamburger);
+            hamburger.parentNode.insertBefore(neonArrow, hamburger);
 
             observer.disconnect();
         }
