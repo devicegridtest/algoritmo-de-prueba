@@ -607,26 +607,65 @@ st.plotly_chart(fig, use_container_width=True)
 st.markdown("---")
 st.caption("🔁 This app auto-refreshes every 60 seconds.")
 
-# --- 💡 JavaScript to replace the sidebar toggle icon with ">>" ---
+# --- 💡 JavaScript to replace the sidebar toggle icon with a custom ">>" button ---
 st.markdown(
     """
+    <style>
+    .custom-sidebar-toggle {
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        z-index: 9999;
+        background: linear-gradient(45deg, #00f2fe, #4facfe);
+        color: #000;
+        font-weight: bold;
+        border: none;
+        border-radius: 8px;
+        padding: 8px 16px;
+        font-size: 18px;
+        box-shadow: 0 0 15px rgba(0, 255, 255, 0.7);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+        text-decoration: none;
+    }
+    .custom-sidebar-toggle:hover {
+        background: linear-gradient(45deg, #4facfe, #00f2fe);
+        box-shadow: 0 0 25px rgba(0, 255, 255, 1);
+        transform: scale(1.05);
+    }
+    .custom-sidebar-toggle span {
+        font-size: 20px;
+        font-weight: bold;
+        color: #000;
+        text-shadow: 0 0 8px #0ff;
+    }
+    </style>
+
     <script>
     // Wait for DOM to be ready
     const observer = new MutationObserver(() => {
         const hamburger = document.querySelector('.css-1v0mbdj');
         if (hamburger) {
-            // Replace the SVG icon with ">>"
-            hamburger.innerHTML = '<span style="font-size: 20px; font-weight: bold; color: #0af; text-shadow: 0 0 8px #0ff;">>></span>';
-            // Optional: Add hover effect
-            hamburger.style.cursor = 'pointer';
-            hamburger.addEventListener('mouseenter', () => {
-                hamburger.style.color = '#0ff';
-                hamburger.style.textShadow = '0 0 12px #0ff';
-            });
-            hamburger.addEventListener('mouseleave', () => {
-                hamburger.style.color = '#0af';
-                hamburger.style.textShadow = '0 0 8px #0ff';
-            });
+            // Hide the original hamburger
+            hamburger.style.visibility = 'hidden';
+            hamburger.style.position = 'absolute';
+            hamburger.style.opacity = '0';
+
+            // Create our custom button
+            const customBtn = document.createElement('button');
+            customBtn.className = 'custom-sidebar-toggle';
+            customBtn.innerHTML = '<span>>></span>';
+            customBtn.onclick = () => {
+                // Trigger the original toggle
+                hamburger.click();
+            };
+
+            // Insert before the original hamburger
+            hamburger.parentNode.insertBefore(customBtn, hamburger);
+
             observer.disconnect();
         }
     });
