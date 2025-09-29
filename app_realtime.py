@@ -55,7 +55,7 @@ body {
     margin-top: 0 !important;
     padding-top: 0 !important;
 }
-/* Tarjetas y estilos (igual que antes) */
+/* Tarjetas y estilos */
 .metric-card {
     background: rgba(0, 40, 60, 0.3);
     border-radius: 12px;
@@ -136,7 +136,16 @@ valid_intervals = {
 # --- SIDEBAR ---
 with st.sidebar:
     st.header("⚙️ Configuración")
-    tickers = ["LTC-USD", "BTC-USD", "ETH-USD", "XRP-USD", "DOGE-USD"]
+    tickers = [
+        # Principales
+        "BTC-USD", "ETH-USD",
+        # Capa 1 & 2
+        "SOL-USD", "ADA-USD", "DOT-USD", "MATIC-USD", "LINK-USD",
+        # Memecoins
+        "DOGE-USD", "SHIB-USD", "PEPE-USD",
+        # Otras
+        "XRP-USD", "LTC-USD", "NEXA-USD", "NODL-USD"
+    ]
     selected_ticker = st.selectbox("Criptomoneda", tickers)
     period = st.selectbox("Periodo", ["1d", "5d", "1mo"], index=0)
     allowed_intervals = valid_intervals[period]
@@ -196,7 +205,6 @@ def load_models():
     model_rf = RandomForestRegressor(n_estimators=50)
     models["Random Forest"] = model_rf
 
-    # Prophet se entrena fresh → no lo cacheamos aquí
     models["Prophet"] = None
     return models
 
@@ -387,7 +395,7 @@ if len(data) >= 80:
                     st.session_state.last_best_prediction = best_prediction
 
 # --- Predicción a Futuro (CORREGIDA) ---
-with st.expander("📈 Predicción a Futuro (30 días de historial)", expanded=False):
+with st.expander("📈 Predicción a Futuro (3 días de historial)", expanded=False):
     try:
         from prophet import Prophet
         model_available = True
@@ -404,7 +412,6 @@ with st.expander("📈 Predicción a Futuro (30 días de historial)", expanded=F
                 else:
                     df_prophet = data_long[['Close']].reset_index()
                     df_prophet.columns = ['ds', 'y']
-                    # ✅ CORRECCIÓN CLAVE: eliminar timezone
                     df_prophet['ds'] = pd.to_datetime(df_prophet['ds']).dt.tz_localize(None)
 
                     prophet_model = Prophet(
@@ -432,7 +439,6 @@ if enable_news and NEWSAPI_ENABLED:
     st.markdown("---")
     st.subheader("📰 Noticias Relevantes")
     with st.spinner("🔍 Cargando noticias..."):
-        # ✅ USAR SECRETS EN VEZ DE CLAVE FIJA
         api_key = st.secrets.get("NEWSAPI_KEY", "")
         if not api_key:
             st.info("ℹ️ Clave de NewsAPI no configurada. Añádela en Secrets de Streamlit Cloud.")
@@ -441,9 +447,18 @@ if enable_news and NEWSAPI_ENABLED:
                 crypto_map = {
                     "BTC-USD": "Bitcoin",
                     "ETH-USD": "Ethereum",
-                    "LTC-USD": "Litecoin",
+                    "SOL-USD": "Solana",
+                    "ADA-USD": "Cardano",
+                    "DOT-USD": "Polkadot",
+                    "MATIC-USD": "Polygon",
+                    "LINK-USD": "Chainlink",
+                    "DOGE-USD": "Dogecoin",
+                    "SHIB-USD": "Shiba Inu",
+                    "PEPE-USD": "Pepe",
                     "XRP-USD": "XRP",
-                    "DOGE-USD": "Dogecoin"
+                    "LTC-USD": "Litecoin",
+                    "NEXA-USD": "Nexa",
+                    "NODL-USD": "Nodle"
                 }
                 query = crypto_map.get(ticker, ticker.split("-")[0])
                 newsapi = NewsApiClient(api_key=api_key)
