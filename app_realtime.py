@@ -125,6 +125,22 @@ h1, h2, h3 {
     padding: 10px;
     box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
 }
+            
+           /* Evitar que el teclado se abra en selectbox en móviles */
+.stSelectbox > div > div > input {
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+    user-select: none !important;
+    pointer-events: none !important;
+}
+
+/* Opcional: mejorar apariencia en móviles */
+.stSelectbox {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+} 
 </style>
 """, unsafe_allow_html=True)
 
