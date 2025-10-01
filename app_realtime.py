@@ -607,3 +607,53 @@ st.plotly_chart(fig, use_container_width=True)
 st.markdown("---")
 st.caption("🔁 This app auto-refreshes every 60 seconds.")
 
+# --- 💡 JavaScript to replace the sidebar toggle icon with a neon ">>" ---
+st.markdown(
+    """
+    <style>
+    .neon-arrow {
+        font-size: 16px;
+        font-weight: bold;
+        color: #0ff;
+        text-shadow: 0 0 8px #0ff, 0 0 12px #0ff;
+        cursor: pointer;
+        padding: 8px;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+    }
+    .neon-arrow:hover {
+        text-shadow: 0 0 12px #0ff, 0 0 20px #0ff;
+        transform: scale(1.1);
+    }
+    </style>
+
+    <script>
+    // Wait for DOM to be ready
+    const observer = new MutationObserver(() => {
+        const hamburger = document.querySelector('.css-1v0mbdj');
+        if (hamburger && !hamburger.classList.contains('neon-replaced')) {
+            // Hide the original hamburger
+            hamburger.style.visibility = 'hidden';
+            hamburger.style.position = 'absolute';
+            hamburger.style.opacity = '0';
+
+            // Create our custom neon >> icon
+            const neonArrow = document.createElement('span');
+            neonArrow.className = 'neon-arrow neon-replaced';
+            neonArrow.innerHTML = '>>';
+            neonArrow.onclick = () => {
+                // Trigger the original toggle
+                hamburger.click();
+            };
+
+            // Insert before the original hamburger
+            hamburger.parentNode.insertBefore(neonArrow, hamburger);
+
+            observer.disconnect();
+        }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    </script>
+    """,
+    unsafe_allow_html=True
+)
