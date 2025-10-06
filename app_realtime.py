@@ -657,3 +657,43 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
+# ==============================
+# DESCARGO DE RESPONSABILIDAD
+# ==============================
+st.markdown("---")
+st.markdown("## 🧾 Descargo de Responsabilidad")
+
+st.markdown("""
+El presente descargo de responsabilidad (“Descargo”) se aplica al uso del servicio, algoritmo, aplicación web, o plataforma accesible en **[algoritmo-de-prueba-6kfppv5cggvmkxzkxvrr5s.streamlit.app]** (en adelante, el “Servicio”).
+
+### 1. Propósito informativo / de prueba
+El Servicio es proporcionado únicamente con fines de **prueba**, **demostración**, **investigación** o **informativos**, y **no garantiza exactitud, integridad o idoneidad** para fines específicos. Los resultados, predicciones, sugerencias o análisis generados por el algoritmo deben considerarse como orientativos y no como asesoramiento definitivo.
+
+### 2. No constituye asesoramiento profesional
+Nada en el Servicio debe interpretarse como **asesoría legal, médica, financiera, contable u otro tipo de asesoramiento profesional**. Los usuarios no deben tomar decisiones importantes basadas únicamente en la salida del algoritmo sin consultar a profesionales calificados en el área correspondiente.
+
+### 3. Ausencia de garantías
+El Servicio se proporciona “tal cual” y “según disponibilidad”, sin garantías de ningún tipo, ya sean explícitas o implícitas, incluyendo pero no limitándose a **garantías de comerciabilidad, idoneidad para un propósito particular, precisión o no infracción** de derechos de terceros.
+
+### 4. Limitación de responsabilidad
+En ningún caso el responsable del Servicio (desarrolladores, propietarios, operadores) será responsable por **daños directos, indirectos, incidentales, especiales, punitivos o consecuentes**, incluyendo pérdida de beneficios, datos, reputación o cualquier otro perjuicio, incluso si se ha advertido de la posibilidad de dichos daños, resultantes del uso o la imposibilidad de uso del Servicio.
+
+### 5. Confiabilidad de datos / entradas del usuario
+Los resultados dependen de la **calidad, integridad y veracidad de los datos** o parámetros ingresados por el usuario. No se garantiza que el algoritmo sea inmune a errores, inconsistencias o sesgos inherentes a los datos de entrada o al modelo utilizado.
+
+### 6. Cambios, interrupciones y modificaciones
+El proveedor del Servicio se reserva el derecho de **modificar, suspender o interrumpir** temporal o permanentemente el Servicio, en todo o en parte, con o sin previo aviso. No será responsable por daños resultantes de dichas modificaciones o interrupciones.
+
+### 7. Propiedad intelectual y licencias
+Salvo disposición expresa en contrario, todos los **derechos, titularidades, patentes, derechos de autor, marcas comerciales y otros derechos de propiedad intelectual** relacionados con el algoritmo, código fuente, documentación y demás componentes son propiedad exclusiva del proveedor del Servicio o de sus licenciantes.
+
+### 8. Privacidad y protección de datos
+Cualquier dato ingresado por los usuarios estará sujeto a la **política de privacidad y condiciones de uso** aplicables al Servicio. El usuario declara que posee los derechos necesarios sobre los datos que proporciona y asume la responsabilidad por su uso.
+
+### 9. Jurisdicción y legislación aplicable
+Este Descargo de Responsabilidad se regirá e interpretará de acuerdo con las leyes de **Estados Unidos**, sin tener en cuenta sus normas sobre conflictos de leyes. Cualquier controversia relacionada con este Descargo se someterá a la jurisdicción exclusiva de los **tribunales competentes del Estado de California**.
+
+### 10. Aceptación del usuario
+Al hacer uso del Servicio, el usuario **acepta expresamente los términos** de este Descargo. Si no está de acuerdo con alguno de los términos, debe **abstenerse de utilizar el Servicio**.
+""")
