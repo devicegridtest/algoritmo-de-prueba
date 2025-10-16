@@ -7,14 +7,29 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import os
 import logging
-import pickle  # <-- Añadido para cargar scalers
+import pickle
+import requests  # <-- Para Telegram
 
 # --- Auto refresh every 60s ---
 from streamlit_autorefresh import st_autorefresh
 st_autorefresh(interval=60000, limit=None, key="datarefresh")
 
 # --- For Telegram alerts ---
-TELEGRAM_ENABLED = False
+def send_telegram_message(message: str):
+    """Envía un mensaje a tu chat privado en Telegram."""
+    try:
+        bot_token = st.secrets["telegram"]["BOT_TOKEN"]
+        chat_id = st.secrets["telegram"]["CHAT_ID"]
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        payload = {
+            "chat_id": chat_id,
+            "text": message,
+            "parse_mode": "HTML"
+        }
+        requests.post(url, data=payload)
+    except Exception:
+        # Silencioso si no hay secrets o hay error
+        pass
 
 # --- For news/sentiment ---
 try:
@@ -149,7 +164,7 @@ h1, h2, h3 {
 """, unsafe_allow_html=True)
 
 # --- DGT LOGO ---
-logo_base64 = "data:image/png;base64,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"  # truncated for brevity
+logo_base64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAABACAYAAADS1n9/AAAJR0lEQVR4AexbCVRUVRj+BiRzQVMMFQNRcQ1bXLLQTHENRdQ062hlkQtBnlRyQfOYGpQZoZVbZh5MKyQsU/EgaGEqKOrBDUXFBcUVXBF3e//YTDPDvY+ZxwBv3nsc7rx3//v/9937/d+79767OD3U/lSNgBO0P1UjoBFA1e4HNAJoBFA5AiqvvtYCaARQOQIqr77WAqiUAIZqawQwIKHSq+oIcP/BA2QdP4svY5PQMzQGDftOhkuHEOjajTKGOt3GofnAaXhr2lKsSt6FqzeKFEuPUhNgV9ZJ1PYfawTPFEhr7gnsJkFTMPDjhViUkIrc85fLBOyi23fxbdxmvcNbDZ6OCfN+w8b0LJw6V4B79x+YPTP/aiGyT53HT+vT8fqkxXATCNEpeDbS9x+HMG1opsuL3Lh5G91CvpaMizXYmer8mbqXVxRReakJIJq7FYkEds6ZS1i9eQ9GR66AV59JaP92JFJ3H7EabLHHkMM27TyENkNn4cPZv+DMhSti6sy0+wJBtmYeQ0eBBG9OWYKCa4VMPUcUVjgBWKBlHDwJ/5BoBM+MBb1JLB1rZHfv3Rfe9AT0DJuLQyfOWWMiqkNE+DUpA/6jo3E094KorqMkypIABB6B/eOabRgQvkDSG0fECZ4RiznLk0B5UZ72CpnZpxE0fj5Ons23V5YVlo9sCWBAJHlHFt6Y/L1NAzF688fHrMLy9WmGbOx+PZhzFhO/SQA9y+6Zl2OGsicAYbEp4zAWJ2yxekzwwx9bQYFseaGSsxNe79EOifPG4GLyV3iwcyEeZizCnbT5yE6YicjQ/mjg/gTPXC+PT9kN6hL0EQf5sSxmmRLAv30LXE+dpweWwDUNRdu+Rd6G2di6dAJGDnwZrlUftyybMU5NeNSyROw+dMoo490cyMnDzCXrRJv9/l2eQ86aSPwaNQK9/Z5GnSeqQ6fT6bN0qeSMpl7umPzuqziyehbGDe0OZ4Es+kSLHyrXgvi/ma1T9aqVkbJgLLPupjjQ/Tt9X7LI+VG0Vo2qyFgeYVUegZ2feWRk42+ZEkCsLI8/5oL6dWrC75kmWBQxDCfWRmJQtzZck8vXbiJ6RXKxTzZTAxrxL4xPRd5F9kifHBn+Vk/EfT4SnnVrmZoy76tUdsGcjwYhKnQAlwQZwmfw9r05THtHEFYYASzBqV2jGlZ+9j7e7ednmWSM03jgkMho/oDQL8clZxj1LW+Cgzrqm3Z6yy3TeHGdToewIV3Rt1Nrpsqdu/eQuG0/M80RhLIhAIFFjokQml6verUpWixcKLiO9Vv3FZMbBPEpu0A6hrjptWWj+pga3Af0DFO5NffUEkx8pzdqVGN3UzRBRC2UNXnJTUdWBCBwfDzdRVuBLXuO4tadu6RqFmi6dmNalpnMNBI6uItVzb6pjel9a58G6ODbCETOAV2fx7QRfbEmOhQn/ozEX4vHg/prOOCf7AhAGPZ68Wnu25aZnSv08VdJzSzQxEzWibNmMkOExhr+7ZsbopKuNKhL+u4jnFwbhYQvR+PTUYGggVfD+m6g8Qwc9E+WBKBRuLdHHSakBcJgkDXIo7EBrxmm5t+zLrtbYT5ERUJZEoDeNmpqWX4oLLrN7OcPCit8LH2S+TbxAOVJ92oNvHrLkgDUpLrVrMYrM46eNp+Hp88/WtXjGXh7uPGSVC+XJQHIKzWrV6ELM9CAzzShsOgOc1xg0PF5yt1wq10tEJAtAcSmYaUs6VrUmxkdPn2Z5PV7qevxzIKUo1C2BChHDFT9KI0AqnY/5HsySKyZt5zNE2Zr4eyk47oy7xJ7bYBroKIE2bYAlgM9U5/QPIFpvFqVyvB4kr90m39FOVu4TOttj3tZEoCmevOv8p3G+kJo5lWXiwfNENKnIldBwQklVU2WBLhx87Z+ty6r8I+5VEKTp54sluTr4wFa7i2WIAj2HjkDMUIJKvr/ZdOHc9feaV8D7W/QKyroR5YEoL12uecLmDDXre2Kxg2KE6CpsIjkXsuVaXPs9EW7bAplZu7gQlkSIG3fcfDm9ZsKTT3L0bR28FwzT6Y7aPqYtm5p3UBxeGRHABr8rdywo3hJ/5P0eqkVc16f1uz7cDZtkGnC5j0QWy8gHTUG2RGANnOmHzjO9IW70PwHdGTvzCGDgE6+aNSAvYpIK4hjv4pj7t8jW7UG2RCAzuyR86fO/527obP7Cy3Rwrse11fewtr80N4vcNPpKFh4TDzomBhXiZFwrfAWaAv437uzGamOLapQAtDnHg34yPFth32G92fGcp1DO25ohy5t5+ZBrtPpEBzUCWKfhEt+/wdB476z6gwi7flfkZgOn/5TMX/VX1xi8srjCPIyJQCdyXPtPIa7wFLFLwzegRF6x2dmnxbFa8LbvdCmhZeoDiXS0m9kWH/QmIDirEAtQeN+ERgy+Xts2HYAV67fNKrRJ+j+Y3kYGx0H9x7hGPbJUly8fN2Y7ig31pazTAlgbSFK0uvRoSVCBr1i3Ltfkn6/zs9ieKAfd16A7OlEcNzGDLw6Zh5qdf3/dDMRtvWQTxGzMsWMGGTDC0Q2V86GUZ6NXOSyJwD1+79EjQBr9o8HIq0VzA0fgpEDXhYlAc/eFjlNQa+NCUOXts1sMZONrmwJQH39mDf8sXpOCOjMgK2IGUgwfWQgKC9b7UvSp1nH1/zbYNdPU+DIM4SyIwA5K6CjLzJ/ngZ6i0uzl49IMDU4ADtiI9CuVcOSfGpVuqF8e4Xyxc8ehXpuNayyk6tShROA9v7RqH1YQAcsn/EeziXNwbq5H6JV4/p2w+z55p5IWzYJ1FS/2LqxpG6BdihNeS8AdKbQ3uWzW0UlZFRqArRt2RAFm77mLqLQ4UexcCklGocTZuidTyQgQkioR4kmzk5OoJnC7T9ORL7wTDofSM8j8lkeTKU4ySmdSHkm8Qvkrvscsz4IKtXhEl4heYtQhCvhy7Ozh7zUBLBHIco7DxpQDu7eVk86It+11LlmBKY4ycn5RAIa6Ol0uvIuZrk8T5UEKBdkK+ghtj5WI4CtiClMXyOAwhxqa3U0AtiKmML0NQIozKG2VkcjgK2IKUxfI4DCHGprdTQC2IqYwvQ1AijEoVKroRFAKnIKsdMIoBBHSq2GRgCpyCnETiOAQhwptRoaAaQipxA7jQAKcaTUamgEkIqcQuw0Aji4I0tb/H8BAAD//6yW0ZUAAAAGSURBVAMAu4xnzCxQM+oAAAAASUVORK5CYII="
 
 st.markdown(f"""
 <div style="display: flex; justify-content: center; align-items: center; gap: 15px; margin-bottom: 20px; padding: 10px; background: rgba(0, 255, 255, 0.05); border-radius: 10px; box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);">
@@ -174,7 +189,7 @@ with st.sidebar:
         # Layer 1 & 2
         "SOL-USD", "ADA-USD", "DOT-USD", "MATIC-USD", "LINK-USD",
         # Memecoins
-        "DOGE-USD", "SHIB-USD", "PEPE-USD",
+        "DOGE-USD", "SHIB-USD", 
         # Others
         "XRP-USD", "LTC-USD", "NEXA-USD", "NODL-USD"
     ]
@@ -184,6 +199,7 @@ with st.sidebar:
     default_interval = "1m" if "1m" in allowed_intervals else allowed_intervals[0]
     interval = st.selectbox("Interval", allowed_intervals, index=allowed_intervals.index(default_interval))
     enable_alerts = st.checkbox("🔔 RSI Alerts", value=True)
+    enable_telegram = st.checkbox("📲 Telegram Alerts", value=False)
     enable_news = st.checkbox("📰 News", value=False)
     st.markdown("---")
     st.caption("🔄 Auto-refresh every 60s")
@@ -304,15 +320,23 @@ with st.container():
     col3.metric("🤖 Model", "Pre-trained LSTM" if load_trained_model_and_scaler(ticker)[0] else "Not available")
     st.markdown('</div>', unsafe_allow_html=True)
 
-# --- RSI Alerts ---
+# --- RSI Alerts + Telegram ---
 rsi_last = float(data['RSI'].iloc[-1])
+alert_message = None
+
 if enable_alerts:
     if rsi_last > 70:
         st.warning("⚠️ **RSI Alert**: Overbought (RSI > 70)")
         st.toast("⚠️ Overbought detected!", icon="⚠️")
+        alert_message = f"⚠️ RSI Alert: {ticker} is OVERBOUGHT (RSI = {rsi_last:.2f})"
     elif rsi_last < 30:
         st.success("✅ **RSI Alert**: Oversold (RSI < 30)")
         st.balloons()
+        alert_message = f"✅ RSI Alert: {ticker} is OVERSOLD (RSI = {rsi_last:.2f})"
+
+# Enviar alerta de RSI por Telegram
+if alert_message and enable_telegram:
+    send_telegram_message(alert_message)
 
 # --- Export CSV ---
 csv = data.to_csv(index=True)
@@ -370,8 +394,15 @@ with st.expander("🤖 AI Prediction (Pre-trained LSTM)", expanded=False):
                             if change > 0:
                                 st.success(f"📈 Prediction ↑ {change:.2f}% → {format_price_dynamic(pred_price)}")
                                 st.balloons()
+                                # Enviar alerta de predicción por Telegram
+                                if enable_telegram:
+                                    pred_msg = f"📈 Prediction Alert: {ticker} ↑ {change:.2f}%\nNew prediction: {format_price_dynamic(pred_price)}"
+                                    send_telegram_message(pred_msg)
                             else:
                                 st.warning(f"📉 Prediction ↓ {change:.2f}% → {format_price_dynamic(pred_price)}")
+                                if enable_telegram:
+                                    pred_msg = f"📉 Prediction Alert: {ticker} ↓ {change:.2f}%\nNew prediction: {format_price_dynamic(pred_price)}"
+                                    send_telegram_message(pred_msg)
                     st.session_state.last_best_prediction = pred_price
                 else:
                     st.warning("⚠️ Not enough data to form a 60-step sequence.")
@@ -428,7 +459,7 @@ if enable_news and NEWSAPI_ENABLED:
             if hasattr(st, 'secrets') and "NEWSAPI_KEY" in st.secrets:
                 api_key = st.secrets["NEWSAPI_KEY"]
         except Exception:
-            api_key = "a0172d10de78441d81ea5f95ec12925e"
+            api_key = ""
         if not api_key:
             st.info("ℹ️ NewsAPI key not configured. Add it in Streamlit Cloud Secrets.")
         else:
