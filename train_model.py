@@ -18,8 +18,9 @@ TICKERS = [
     "BTC-USD", "ETH-USD",
     "MATIC-USD", "LINK-USD",
     "DOGE-USD", "SHIB-USD", "PEPE-USD",
-    "XRP-USD", "LTC-USD",
-    "NEXA-USD", "NODL-USD"
+    "XRP-USD", "LTC-USD", "ADA-USD",
+    "NEXA-USD", "SOL-USD", "NODL-USD",
+    "DOT-USD"
 ]
 
 SEQ_LEN = 60      # 60 pasos (1h x 60 = 2.5 días)
