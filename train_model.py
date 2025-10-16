@@ -14,7 +14,14 @@ import os
 # ==============================
 # 1️⃣ CONFIGURACIÓN GENERAL
 # ==============================
-TICKERS = ["BTC-USD", "ETH-USD", "LTC-USD"]  # monedas a entrenar
+TICKERS = [
+    "BTC-USD", "ETH-USD",
+    "MATIC-USD", "LINK-USD",
+    "DOGE-USD", "SHIB-USD", "PEPE-USD",
+    "XRP-USD", "LTC-USD",
+    "NEXA-USD", "NODL-USD"
+]
+
 SEQ_LEN = 60      # 60 pasos (1h x 60 = 2.5 días)
 EPOCHS = 50
 BATCH_SIZE = 64
@@ -52,8 +59,18 @@ def create_sequences(data, seq_len):
 for TICKER in TICKERS:
     print(f"\n📈 Entrenando modelo para {TICKER}...")
     try:
-        # Descarga de datos históricos
+        # Descarga de datos históricos (1 año)
         df = yf.download(TICKER, period="1y", interval="1h")
+        
+        # Si hay muy pocos datos, intentar con 6 meses
+        if len(df) < 1000:  # ~40 días de datos horarios
+            print(f"⚠️ Pocos datos con 1 año, intentando 6 meses para {TICKER}...")
+            df = yf.download(TICKER, period="6mo", interval="1h")
+        
+        if len(df) < 500:  # mínimo ~20 días
+            print(f"❌ Datos insuficientes para {TICKER} ({len(df)} filas). Saltando.")
+            continue
+
         df = add_indicators(df)
 
         # Normalización
@@ -68,6 +85,10 @@ for TICKER in TICKERS:
 
         # Crear secuencias
         X, y = create_sequences(scaled_data, SEQ_LEN)
+        if len(X) < 100:
+            print(f"❌ Secuencias insuficientes para {TICKER} ({len(X)}). Saltando.")
+            continue
+
         split = int(0.8 * len(X))
         X_train, y_train = X[:split], y[:split]
         X_test, y_test = X[split:], y[split:]
@@ -89,7 +110,7 @@ for TICKER in TICKERS:
         checkpoint = ModelCheckpoint(best_model_path, save_best_only=True, monitor="val_loss", mode="min")
 
         # Entrenamiento
-        print(f"🚀 Entrenando {TICKER}...")
+        print(f"🚀 Entrenando {TICKER} con {len(X_train)} secuencias...")
         model.fit(
             X_train, y_train,
             epochs=EPOCHS,
@@ -111,4 +132,4 @@ for TICKER in TICKERS:
         print(f"⚠️ Error entrenando {TICKER}: {e}")
         continue
 
-print("\n🎉 Entrenamiento completo para todas las monedas (BTC, ETH, LTC).")
+print(f"\n🎉 Entrenamiento completado para {len(TICKERS)} monedas.")
