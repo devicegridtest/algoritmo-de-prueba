@@ -7,6 +7,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import os
 import logging
+import pickle  # <-- Añadido para cargar scalers
 
 # --- Auto refresh every 60s ---
 from streamlit_autorefresh import st_autorefresh
@@ -148,7 +149,7 @@ h1, h2, h3 {
 """, unsafe_allow_html=True)
 
 # --- DGT LOGO ---
-logo_base64 = "data:image/png;base64,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"
+logo_base64 = "data:image/png;base64,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......"  # truncated for brevity
 
 st.markdown(f"""
 <div style="display: flex; justify-content: center; align-items: center; gap: 15px; margin-bottom: 20px; padding: 10px; background: rgba(0, 255, 255, 0.05); border-radius: 10px; box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);">
@@ -192,56 +193,52 @@ ticker = selected_ticker
 # --- Helper functions ---
 def add_indicators(df):
     df = df.copy()
+    df["MA5"] = df["Close"].rolling(5).mean()
+    df["MA10"] = df["Close"].rolling(10).mean()
+    df["MA20"] = df["Close"].rolling(20).mean()
+    df["EMA50"] = df["Close"].ewm(span=50, adjust=False).mean()
+    # RSI
     delta = df['Close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
     rs = gain / loss
     df['RSI'] = 100 - (100 / (1 + rs))
+    # MACD
     exp12 = df['Close'].ewm(span=12, adjust=False).mean()
     exp26 = df['Close'].ewm(span=26, adjust=False).mean()
     df['MACD'] = exp12 - exp26
-    df['MACD_signal'] = df['MACD'].ewm(span=9, adjust=False).mean()
-    df['MA5'] = df['Close'].rolling(5).mean()
-    df['MA10'] = df['Close'].rolling(10).mean()
-    df['MA20'] = df['Close'].rolling(20).mean()
-    # Add longer-term EMA for trend
-    df['EMA50'] = df['Close'].ewm(span=50, adjust=False).mean()
+    # Returns y volatility (igual que en train_model.py)
+    df["returns"] = df["Close"].pct_change()
+    df["volatility"] = df["returns"].rolling(20).std()
+    df.dropna(inplace=True)
     return df
 
-def create_sequences(data, seq_length):
-    X, y = [], []
-    for i in range(len(data) - seq_length):
-        X.append(data[i:i + seq_length])
-        y.append(data[i + seq_length, 0])
-    return np.array(X), np.array(y)
-
-# --- Load models ---
+# --- Load PRE-TRAINED model and scaler ---
 @st.cache_resource
-def load_models():
-    models = {}
+def load_trained_model_and_scaler(ticker):
+    model_dir = "models"
+    model_path = os.path.join(model_dir, f"best_lstm_{ticker}.h5")
+    scaler_path = os.path.join(model_dir, f"scaler_{ticker}.pkl")
+    
+    if not os.path.exists(model_path) or not os.path.exists(scaler_path):
+        return None, None
+
     try:
-        from tensorflow.keras.models import Sequential
-        from tensorflow.keras.layers import LSTM, Dense, Dropout
-        model_lstm = Sequential([
-            LSTM(50, return_sequences=True, input_shape=(60, 8)),  # now 8 features
-            Dropout(0.2),
-            LSTM(50, return_sequences=False),
-            Dropout(0.2),
-            Dense(1)
-        ])
-        model_lstm.compile(optimizer='adam', loss='mse')
-        models["LSTM"] = model_lstm
-    except Exception:
-        models["LSTM"] = None
+        from tensorflow.keras.models import load_model
+        from tensorflow.keras import losses
 
-    from sklearn.ensemble import RandomForestRegressor
-    model_rf = RandomForestRegressor(n_estimators=50)
-    models["Random Forest"] = model_rf
+        # Cargar el modelo SIN compilar para evitar errores de serialización
+        model = load_model(model_path, compile=False)
+        
+        # Recompilar manualmente con la misma configuración usada en train_model.py
+        model.compile(optimizer="adam", loss=losses.MeanSquaredError())
 
-    models["Prophet"] = None
-    return models
-
-models = load_models()
+        with open(scaler_path, "rb") as f:
+            scaler = pickle.load(f)
+        return model, scaler
+    except Exception as e:
+        st.warning(f"⚠️ Error loading model/scaler for {ticker}: {e}")
+        return None, None
 
 # --- State ---
 if 'data' not in st.session_state:
@@ -304,8 +301,7 @@ with st.container():
     col1, col2, col3 = st.columns(3)
     col1.metric("💰 Current Price", format_price_dynamic(current_price))
     col2.metric("📊 Today's Change", f"{change_pct:.2f}%", delta=change_pct, delta_color="normal")
-    active_models = ", ".join([k for k, v in models.items() if v is not None])
-    col3.metric("🤖 Active Models", active_models if active_models else "None")
+    col3.metric("🤖 Model", "Pre-trained LSTM" if load_trained_model_and_scaler(ticker)[0] else "Not available")
     st.markdown('</div>', unsafe_allow_html=True)
 
 # --- RSI Alerts ---
@@ -328,118 +324,59 @@ st.download_button(
     use_container_width=True
 )
 
-# --- Short-term Predictions (using 5d/5m data for better trend) ---
-if len(data) >= 80:
-    with st.expander("🤖 Predictions & Accuracy Comparison", expanded=False):
-        # 🔁 Use longer historical data for ML (5 days, 5min)
+# --- Short-term Predictions (using pre-trained model) ---
+with st.expander("🤖 AI Prediction (Pre-trained LSTM)", expanded=False):
+    model_lstm, scaler = load_trained_model_and_scaler(ticker)
+
+    if model_lstm is None or scaler is None:
+        st.warning(f"❌ No pre-trained model found for {ticker}. Please run `train_model.py` first.")
+    else:
+        # Descargar datos recientes (usamos 1h como en train_model.py)
         try:
-            data_ml = yf.download(ticker, period="5d", interval="5m")
-            data_ml = add_indicators(data_ml)
-            data_ml.dropna(inplace=True)
-            if len(data_ml) < 80:
-                st.warning("Not enough data for prediction.")
-                data_ml = None
-        except:
-            data_ml = None
-
-        if data_ml is not None and len(data_ml) >= 80:
-            features = ['Close', 'RSI', 'MACD', 'Volume', 'MA5', 'MA10', 'MA20', 'EMA50']
-            df_features = data_ml[features].copy()
-            from sklearn.preprocessing import MinMaxScaler
-            scaler = MinMaxScaler()
-            scaled_data = scaler.fit_transform(df_features)
-            sequence_length = 60
-            X, y = create_sequences(scaled_data, sequence_length)
+            data_pred = yf.download(ticker, period="5d", interval="1h")
+            data_pred = add_indicators(data_pred)
+            data_pred.dropna(inplace=True)
             
-            if len(X) > 0:
-                split = int(0.8 * len(X))
-                X_train, X_test = X[:split], X[split:]
-                y_train, y_test = y[:split], y[split:]
+            if len(data_pred) < 70:
+                st.warning("⚠️ Not enough data for prediction (need ≥70 hourly points).")
+            else:
+                feature_cols = ["Close", "RSI", "MACD", "Volume", "MA5", "MA10", "MA20", "EMA50", "returns", "volatility"]
+                scaled_data = scaler.transform(data_pred[feature_cols])
+                seq_len = 60
                 
-                predictions = {}
-                metrics = {}
-                
-                # Random Forest
-                def create_sequences_rf(data_array, seq_length):
-                    X_rf, y_rf = [], []
-                    for i in range(len(data_array) - seq_length):
-                        X_rf.append(data_array[i + seq_length - 1])
-                        y_rf.append(data_array[i + seq_length, 0])
-                    return np.array(X_rf), np.array(y_rf)
-                
-                X_rf_all, y_rf_all = create_sequences_rf(scaled_data, sequence_length)
-                if len(X_rf_all) > 0:
-                    split_rf = int(0.8 * len(X_rf_all))
-                    X_train_rf, y_train_rf = X_rf_all[:split_rf], y_rf_all[:split_rf]
-                    X_test_rf, y_test_rf = X_rf_all[split_rf:], y_rf_all[split_rf:]
-                else:
-                    X_train_rf = X_test_rf = y_train_rf = y_test_rf = np.array([])
-
-                def inverse_scale_close(scaled_value):
-                    return scaler.data_min_[0] + scaled_value * scaler.data_range_[0]
-                
-                if models["Random Forest"] is not None and len(X_train_rf) > 0:
-                    models["Random Forest"].fit(X_train_rf, y_train_rf)
-                    last_sequence_rf = scaled_data[-1].reshape(1, -1)
-                    next_pred_rf_scaled = models["Random Forest"].predict(last_sequence_rf)[0]
-                    next_price_rf = inverse_scale_close(next_pred_rf_scaled)
-                    predictions["Random Forest"] = float(next_price_rf)
-                    y_pred_rf_scaled = models["Random Forest"].predict(X_test_rf)
-                    from sklearn.metrics import mean_squared_error, mean_absolute_error
-                    metrics["Random Forest"] = {
-                        "RMSE": np.sqrt(mean_squared_error(y_test_rf, y_pred_rf_scaled)),
-                        "MAE": mean_absolute_error(y_test_rf, y_pred_rf_scaled)
-                    }
-
-                # LSTM
-                if models["LSTM"] is not None:
-                    try:
-                        models["LSTM"].fit(X_train, y_train, epochs=1, batch_size=32, verbose=0)
-                        last_sequence_lstm = scaled_data[-sequence_length:].reshape(1, sequence_length, len(features))
-                        next_pred_lstm_scaled = models["LSTM"].predict(last_sequence_lstm, verbose=0)[0, 0]
-                        next_price_lstm = inverse_scale_close(next_pred_lstm_scaled)
-                        predictions["LSTM"] = float(next_price_lstm)
-                        y_pred_lstm_scaled = models["LSTM"].predict(X_test, verbose=0).flatten()
-                        metrics["LSTM"] = {
-                            "RMSE": np.sqrt(mean_squared_error(y_test, y_pred_lstm_scaled)),
-                            "MAE": mean_absolute_error(y_test, y_pred_lstm_scaled)
-                        }
-                    except Exception as e:
-                        st.warning(f"LSTM error: {e}")
-
-                if predictions:
-                    st.subheader("📊 Multi-Model Predictions")
-                    cols = st.columns(len(predictions))
-                    for i, (model_name, pred_price) in enumerate(predictions.items()):
-                        change = ((pred_price - current_price) / current_price) * 100
-                        cols[i].metric(model_name, format_price_dynamic(pred_price), delta=f"{change:.2f}%")
-
-                if metrics:
-                    st.subheader("📈 Accuracy Comparison")
-                    metric_cols = st.columns(len(metrics))
-                    for i, (model_name, metric_dict) in enumerate(metrics.items()):
-                        metric_cols[i].metric(model_name, f"RMSE: {metric_dict['RMSE']:.4f}", delta=f"MAE: {metric_dict['MAE']:.4f}")
-
-                if metrics:
-                    best_model = min(metrics.keys(), key=lambda k: metrics[k]['RMSE'])
-                    best_prediction = predictions[best_model]
-                    st.session_state.best_prediction = best_prediction
-
-                    if 'last_best_prediction' not in st.session_state:
-                        st.session_state.last_best_prediction = best_prediction
-                    else:
+                if len(scaled_data) >= seq_len:
+                    last_sequence = scaled_data[-seq_len:].reshape(1, seq_len, len(feature_cols))
+                    pred_scaled = model_lstm.predict(last_sequence, verbose=0)[0, 0]
+                    
+                    # Desescalar solo 'Close' (asumimos que es la columna 0)
+                    dummy = np.zeros((1, len(feature_cols)))
+                    dummy[0, 0] = pred_scaled
+                    pred_price = scaler.inverse_transform(dummy)[0, 0]
+                    
+                    # Mostrar
+                    change_pct_pred = ((pred_price - current_price) / current_price) * 100
+                    st.subheader("Next Hour Prediction")
+                    col1, col2 = st.columns(2)
+                    col1.metric("Predicted Price", format_price_dynamic(pred_price))
+                    col2.metric("Change", f"{change_pct_pred:.2f}%", delta=change_pct_pred, delta_color="normal")
+                    
+                    st.session_state.best_prediction = float(pred_price)
+                    
+                    # Alerta si cambia significativamente
+                    if 'last_best_prediction' in st.session_state and st.session_state.last_best_prediction != 0:
                         last_pred = st.session_state.last_best_prediction
-                        if last_pred != 0:
-                            change = ((best_prediction - last_pred) / last_pred) * 100
-                            if abs(change) > 1.0:
-                                if change > 0:
-                                    st.success(f"📈 Prediction ↑ {change:.2f}% → {format_price_dynamic(best_prediction)}")
-                                    st.balloons()
-                                else:
-                                    st.warning(f"📉 Prediction ↓ {change:.2f}% → {format_price_dynamic(best_prediction)}")
-                        st.session_state.last_best_prediction = best_prediction
-        else:
-            st.info("Not enough historical data for prediction.")
+                        change = ((pred_price - last_pred) / last_pred) * 100
+                        if abs(change) > 1.0:
+                            if change > 0:
+                                st.success(f"📈 Prediction ↑ {change:.2f}% → {format_price_dynamic(pred_price)}")
+                                st.balloons()
+                            else:
+                                st.warning(f"📉 Prediction ↓ {change:.2f}% → {format_price_dynamic(pred_price)}")
+                    st.session_state.last_best_prediction = pred_price
+                else:
+                    st.warning("⚠️ Not enough data to form a 60-step sequence.")
+        except Exception as e:
+            st.error(f"🚨 Error during prediction: {e}")
 
 # --- Future Prediction (30-day history, hourly) ---
 with st.expander("📈 Future Prediction (3-day history)", expanded=False):
@@ -571,7 +508,7 @@ fig.add_trace(go.Scatter(x=[last_date], y=[current_price],
 
 if 'best_prediction' in st.session_state:
     best_pred = st.session_state.best_prediction
-    future_date = data.index[-1] + pd.Timedelta(minutes=1)
+    future_date = data.index[-1] + pd.Timedelta(hours=1)
     fig.add_trace(go.Scatter(x=[last_date, future_date], 
                              y=[current_price, best_pred], 
                              mode='lines',
