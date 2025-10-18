@@ -331,7 +331,6 @@ with st.sidebar:
     default_interval = "1m" if "1m" in allowed_intervals else allowed_intervals[0]
     interval = st.selectbox("Interval", allowed_intervals, index=allowed_intervals.index(default_interval))
     enable_alerts = st.checkbox("🔔 RSI Alerts", value=True)
-    enable_news = st.checkbox("📰 NewsAPI News", value=False)
     enable_telegram_news = st.checkbox("📡 Telegram News", value=False)
     telegram_channels = {
         "Bitcoin News": "bitcoinnews",
