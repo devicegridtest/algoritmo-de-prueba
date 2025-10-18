@@ -128,40 +128,41 @@ def send_global_alerts():
 from streamlit_autorefresh import st_autorefresh
 st_autorefresh(interval=60000, limit=None, key="datarefresh")
 
-# --- Telegram News Reader (lightweight) ---
-async def fetch_telegram_messages(channel_username: str, limit: int = 3):
+# --- Fetch CryptoPanic News ---
+def fetch_cryptopanic_news(ticker_symbol: str, limit: int = 3):
+    """
+    Obtiene noticias de CryptoPanic para un símbolo de criptomoneda.
+    ticker_symbol: ej. 'BTC', 'ETH', etc.
+    """
     try:
-        from telethon import TelegramClient
-        from telethon.tl.functions.messages import GetHistoryRequest
-        from telethon.tl.types import PeerChannel
+        api_token = st.secrets["cryptopanic"]["API_TOKEN"]
+        # Mapear tickers de Yahoo Finance a símbolos de CryptoPanic
+        symbol_map = {
+            "BTC-USD": "BTC", "ETH-USD": "ETH", "SOL-USD": "SOL",
+            "ADA-USD": "ADA", "DOT-USD": "DOT", "TRX-USD": "TRX",
+            "LINK-USD": "LINK", "DOGE-USD": "DOGE", "SHIB-USD": "SHIB",
+            "XRP-USD": "XRP", "LTC-USD": "LTC", "NEXA-USD": "NEXA",
+            "NODL-USD": "NODL"
+        }
+        symbol = symbol_map.get(ticker_symbol, "BTC")  # Por defecto BTC
 
-        api_id = st.secrets["telegram_api"]["API_ID"]
-        api_hash = st.secrets["telegram_api"]["API_HASH"]
-        
-        with tempfile.TemporaryDirectory() as tmpdir:
-            client = TelegramClient(os.path.join(tmpdir, "session"), int(api_id), api_hash)
-            async with client:
-                entity = await client.get_entity(channel_username)
-                history = await client(GetHistoryRequest(
-                    peer=PeerChannel(entity.id),
-                    limit=limit,
-                    offset_id=0,
-                    max_id=0,
-                    min_id=0,
-                    add_offset=0,
-                    hash=0
-                ))
-                messages = []
-                for msg in history.messages:
-                    if hasattr(msg, 'message') and msg.message:
-                        messages.append({
-                            "text": msg.message[:300] + "..." if len(msg.message) > 300 else msg.message,
-                            "date": msg.date.strftime("%Y-%m-%d %H:%M") if msg.date else "",
-                            "views": getattr(msg, 'views', 0)
-                        })
-                return messages
+        url = f"https://cryptopanic.com/api/v1/posts/?auth_token={api_token}&currencies={symbol}&public=true"
+        response = requests.get(url, timeout=10)
+        if response.status_code != 200:
+            return [{"title": "⚠️ Error: API limit reached or invalid token", "published_at": "", "url": "#"}]
+
+        data = response.json()
+        news_list = []
+        for item in data.get("results", [])[:limit]:
+            news_list.append({
+                "title": item.get("title", "No title"),
+                "published_at": item.get("published_at", "")[:10] if item.get("published_at") else "",
+                "url": item.get("url", "#")
+            })
+        return news_list
     except Exception as e:
-        return [{"text": f"⚠️ Error loading Telegram news: {str(e)}", "date": "", "views": 0}]
+        return [{"title": f"⚠️ Error loading news: {str(e)}", "published_at": "", "url": "#"}]
+
 
 # --- For Telegram alerts (AUTOMATIC) ---
 def send_telegram_message(message: str):
@@ -331,14 +332,9 @@ with st.sidebar:
     default_interval = "1m" if "1m" in allowed_intervals else allowed_intervals[0]
     interval = st.selectbox("Interval", allowed_intervals, index=allowed_intervals.index(default_interval))
     enable_alerts = st.checkbox("🔔 RSI Alerts", value=True)
-    enable_telegram_news = st.checkbox("📡 Telegram News", value=False)
-    telegram_channels = {
-        "Bitcoin News": "bitcoinnews",
-        "Crypto Twitter": "cryptotwitter",
-        "Whale Alerts": "whale_alert"
-    }
-    if enable_telegram_news:
-        selected_channel = st.selectbox("Select Channel", list(telegram_channels.keys()))
+    
+    # ✅ Reemplazamos Telegram News por CryptoPanic
+    enable_news = st.checkbox("📰 CryptoPanic News", value=False)
     
     st.markdown("---")
     # ✅ Botón de invitación (dentro del sidebar)
