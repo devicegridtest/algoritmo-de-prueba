@@ -10,6 +10,49 @@ import logging
 import pickle
 import requests
 import tempfile
+import threading
+import time
+import datetime
+import logging
+import traceback
+
+# --- Configurar logging ---
+logging.basicConfig(
+    filename="alerts.log",
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+
+def hourly_alerts_background():
+    """Hilo que ejecuta send_global_alerts() cada hora en punto, sin bloquear Streamlit."""
+    logging.info("🟢 Servicio de alertas iniciado (modo background Streamlit).")
+    
+    while True:
+        try:
+            now = datetime.datetime.now()
+            next_hour = (now + datetime.timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
+            seconds_until_next = (next_hour - now).total_seconds()
+
+            # --- Ejecutar función principal ---
+            logging.info("🚀 Ejecutando send_global_alerts()...")
+            send_global_alerts()
+            logging.info("✅ Ejecución completada correctamente.")
+
+        except Exception as e:
+            logging.error(f"❌ Error en send_global_alerts(): {e}")
+            logging.error(traceback.format_exc())
+
+        # Esperar hasta la próxima hora exacta
+        logging.info(f"⏰ Esperando {int(seconds_until_next)} segundos hasta {next_hour.strftime('%H:%M')}.")
+        time.sleep(seconds_until_next)
+
+
+# --- Lanzar el hilo solo una vez ---
+if "alerts_thread" not in st.session_state:
+    st.session_state.alerts_thread = threading.Thread(target=hourly_alerts_background, daemon=True)
+    st.session_state.alerts_thread.start()
+    st.toast("🚀 Servicio de alertas iniciado en segundo plano.", icon="✅")
 
 # --- Lista global de todas las monedas ---
 ALL_TICKERS = [
