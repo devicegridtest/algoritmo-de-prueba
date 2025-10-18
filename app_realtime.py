@@ -50,12 +50,12 @@ async def fetch_telegram_messages(channel_username: str, limit: int = 3):
     except Exception as e:
         return [{"text": f"⚠️ Error loading Telegram news: {str(e)}", "date": "", "views": 0}]
 
-# --- For Telegram alerts ---
+# --- For Telegram alerts (AUTOMATIC) ---
 def send_telegram_message(message: str):
     try:
         bot_token = st.secrets["telegram"]["BOT_TOKEN"]
         chat_id = st.secrets["telegram"]["CHAT_ID"]
-        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"  
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"  # ✅ Sin espacios
         payload = {
             "chat_id": chat_id,
             "text": message,
@@ -64,30 +64,6 @@ def send_telegram_message(message: str):
         requests.post(url, data=payload)
     except Exception:
         pass
-
-    st.markdown("### 🤖 Invita el Bot de Alertas")
-st.markdown(
-    """
-    <a href="https://t.me/@LTCAlertaBot" target="_blank">
-        <button style="
-            background: linear-gradient(45deg, #00f2fe, #4facfe);
-            color: #000;
-            font-weight: bold;
-            border: none;
-            border-radius: 8px;
-            padding: 10px 20px;
-            font-size: 16px;
-            box-shadow: 0 0 15px rgba(0, 255, 255, 0.7);
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-block;
-        ">
-            📲 Agregar Bot a Telegram
-        </button>
-    </a>
-    """,
-    unsafe_allow_html=True
-)
 
 # --- For news/sentiment ---
 try:
@@ -248,7 +224,6 @@ with st.sidebar:
     default_interval = "1m" if "1m" in allowed_intervals else allowed_intervals[0]
     interval = st.selectbox("Interval", allowed_intervals, index=allowed_intervals.index(default_interval))
     enable_alerts = st.checkbox("🔔 RSI Alerts", value=True)
-    enable_telegram = st.checkbox("📲 Telegram Alerts", value=False)
     enable_news = st.checkbox("📰 NewsAPI News", value=False)
     enable_telegram_news = st.checkbox("📡 Telegram News", value=False)
     telegram_channels = {
@@ -258,6 +233,32 @@ with st.sidebar:
     }
     if enable_telegram_news:
         selected_channel = st.selectbox("Select Channel", list(telegram_channels.keys()))
+    
+    st.markdown("---")
+    # ✅ Botón de invitación (dentro del sidebar)
+    st.markdown("### 🤖 Invita el Bot de Alertas")
+    st.markdown(
+        """
+        <a href="https://t.me/LTCAlertaBot" target="_blank">
+            <button style="
+                background: linear-gradient(45deg, #00f2fe, #4facfe);
+                color: #000;
+                font-weight: bold;
+                border: none;
+                border-radius: 8px;
+                padding: 10px 20px;
+                font-size: 16px;
+                box-shadow: 0 0 15px rgba(0, 255, 255, 0.7);
+                cursor: pointer;
+                text-decoration: none;
+                display: inline-block;
+            ">
+                📲 Agregar Bot a Telegram
+            </button>
+        </a>
+        """,
+        unsafe_allow_html=True
+    )
     st.markdown("---")
     st.caption("🔄 Auto-refresh every 60s")
 
@@ -319,7 +320,6 @@ if 'last_best_prediction' not in st.session_state:
 def update_data():
     try:
         data = yf.download(ticker, period=period, interval=interval)
-        # ✅ Aplanar columnas si es MultiIndex
         if not data.empty and isinstance(data.columns, pd.MultiIndex):
             data.columns = data.columns.get_level_values(0)
         if data.empty or len(data) < 10:
@@ -376,7 +376,7 @@ with st.container():
     col3.metric("🤖 Model", "Pre-trained LSTM" if load_trained_model_and_scaler(ticker)[0] else "Not available")
     st.markdown('</div>', unsafe_allow_html=True)
 
-# --- RSI Alerts + Telegram ---
+# --- RSI Alerts + Telegram (AUTOMATIC) ---
 rsi_last = float(data['RSI'].iloc[-1])
 alert_message = None
 
@@ -390,7 +390,8 @@ if enable_alerts:
         st.balloons()
         alert_message = f"✅ RSI Alert: {ticker} is OVERSOLD (RSI = {rsi_last:.2f})"
 
-if alert_message and enable_telegram:
+# ✅ Enviar SIEMPRE si hay alerta (sin checkbox)
+if alert_message:
     send_telegram_message(alert_message)
 
 # --- Export CSV ---
@@ -412,7 +413,6 @@ with st.expander("🤖 AI Prediction (Pre-trained LSTM)", expanded=False):
     else:
         try:
             data_pred = yf.download(ticker, period="7d", interval="1h")
-            # ✅ Aplanar aquí también
             if not data_pred.empty and isinstance(data_pred.columns, pd.MultiIndex):
                 data_pred.columns = data_pred.columns.get_level_values(0)
             data_pred = add_indicators(data_pred)
@@ -451,14 +451,13 @@ with st.expander("🤖 AI Prediction (Pre-trained LSTM)", expanded=False):
                             if change > 0:
                                 st.success(f"📈 Prediction ↑ {change:.2f}% → {format_price_dynamic(pred_price)}")
                                 st.balloons()
-                                if enable_telegram:
-                                    pred_msg = f"📈 Prediction Alert: {ticker} ↑ {change:.2f}%\nNew prediction: {format_price_dynamic(pred_price)}"
-                                    send_telegram_message(pred_msg)
+                                # ✅ Enviar alerta de predicción automáticamente
+                                pred_msg = f"📈 Prediction Alert: {ticker} ↑ {change:.2f}%\nNew prediction: {format_price_dynamic(pred_price)}"
+                                send_telegram_message(pred_msg)
                             else:
                                 st.warning(f"📉 Prediction ↓ {change:.2f}% → {format_price_dynamic(pred_price)}")
-                                if enable_telegram:
-                                    pred_msg = f"📉 Prediction Alert: {ticker} ↓ {change:.2f}%\nNew prediction: {format_price_dynamic(pred_price)}"
-                                    send_telegram_message(pred_msg)
+                                pred_msg = f"📉 Prediction Alert: {ticker} ↓ {change:.2f}%\nNew prediction: {format_price_dynamic(pred_price)}"
+                                send_telegram_message(pred_msg)
                     st.session_state.last_best_prediction = pred_price
                 else:
                     st.warning("⚠️ Not enough data to form a 60-step sequence.")
@@ -682,12 +681,4 @@ st.markdown(
 # --- DISCLAIMER ---
 st.markdown("---")
 st.markdown("## 🧾 Disclaimer")
-st.markdown("""
-This disclaimer (“Disclaimer”) applies to the use of the service, algorithm, web application, or platform accessible at **[algoritmo-de-prueba-6kfppv5cggvmkxzkxvrr5s.streamlit.app]**...
-
-### 10. User Acceptance
-By using the Service, the user **expressly accepts the terms** of this Disclaimer. If the user does not agree with any of these terms, they must **refrain from using the Service**.
-
-""", unsafe_allow_html=True)
-
-
+st.markdown("""...""", unsafe_allow_html=True)
