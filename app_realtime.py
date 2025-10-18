@@ -11,6 +11,76 @@ import pickle
 import requests
 import tempfile
 
+# --- Lista global de todas las monedas ---
+ALL_TICKERS = [
+    "BTC-USD", "ETH-USD", "SOL-USD", "ADA-USD", "DOT-USD", 
+    "TRX-USD", "LINK-USD", "DOGE-USD", "SHIB-USD", 
+    "XRP-USD", "LTC-USD", "NEXA-USD", "NODL-USD"
+]
+
+# --- Función para enviar alertas globales ---
+def send_global_alerts():
+    """Revisa todas las monedas y envía alertas a Telegram."""
+    for ticker in ALL_TICKERS:
+        try:
+            # Descargar datos recientes (últimas 24h en intervalos de 1h)
+            data = yf.download(ticker, period="1d", interval="1h")
+            if data.empty or len(data) < 10:
+                continue
+            data = add_indicators(data)
+            if data.empty:
+                continue
+
+            # --- RSI Alert ---
+            rsi_last = float(data['RSI'].iloc[-1])
+            if rsi_last > 70:
+                send_telegram_message(f"⚠️ RSI Alert: {ticker} is OVERBOUGHT (RSI = {rsi_last:.2f})")
+            elif rsi_last < 30:
+                send_telegram_message(f"✅ RSI Alert: {ticker} is OVERSOLD (RSI = {rsi_last:.2f})")
+
+            # --- Prediction Alert ---
+            model, scaler = load_trained_model_and_scaler(ticker)
+            if model is None or scaler is None:
+                continue
+
+            # Descargar datos para predicción (5 días)
+            data_pred = yf.download(ticker, period="5d", interval="1h")
+            if data_pred.empty or len(data_pred) < 70:
+                continue
+            data_pred = add_indicators(data_pred)
+            data_pred.dropna(inplace=True)
+            if len(data_pred) < 70:
+                continue
+
+            feature_cols = [
+                "Close", "RSI", "MACD", "MACD_signal", "Volume", 
+                "MA5", "MA10", "MA20", "EMA50", "EMA100",
+                "returns", "volatility", "volume_ratio"
+            ]
+            scaled_data = scaler.transform(data_pred[feature_cols])
+            seq_len = 60
+            if len(scaled_data) < seq_len:
+                continue
+
+            last_sequence = scaled_data[-seq_len:].reshape(1, seq_len, len(feature_cols))
+            pred_scaled = model.predict(last_sequence, verbose=0)[0, 0]
+            dummy = np.zeros((1, len(feature_cols)))
+            dummy[0, 0] = pred_scaled
+            pred_price = scaler.inverse_transform(dummy)[0, 0]
+
+            current_price = float(data['Close'].iloc[-1])
+            change_pct = ((pred_price - current_price) / current_price) * 100
+            if abs(change_pct) > 1.0:
+                direction = "↑" if change_pct > 0 else "↓"
+                send_telegram_message(
+                    f"{direction} Prediction Alert: {ticker} {direction} {abs(change_pct):.2f}%\n"
+                    f"New prediction: {format_price_dynamic(pred_price)}"
+                )
+
+        except Exception:
+            # Silencioso en producción
+            pass
+        
 # --- Auto refresh every 60s ---
 from streamlit_autorefresh import st_autorefresh
 st_autorefresh(interval=60000, limit=None, key="datarefresh")
@@ -677,6 +747,14 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
+# --- Enviar alertas globales en cada refresh ---
+if "global_alerts_sent" not in st.session_state:
+    st.session_state.global_alerts_sent = False
+
+if not st.session_state.global_alerts_sent:
+    send_global_alerts()
+    st.session_state.global_alerts_sent = True
 
 # --- DISCLAIMER ---
 st.markdown("---")
