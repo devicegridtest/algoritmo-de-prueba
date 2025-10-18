@@ -168,7 +168,7 @@ def send_telegram_message(message: str):
     try:
         bot_token = st.secrets["telegram"]["BOT_TOKEN"]
         chat_id = st.secrets["telegram"]["CHAT_ID"]
-        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"  # ✅ Sin espacios
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"  
         payload = {
             "chat_id": chat_id,
             "text": message,
