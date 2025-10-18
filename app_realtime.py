@@ -68,7 +68,7 @@ def send_telegram_message(message: str):
     st.markdown("### 🤖 Invita el Bot de Alertas")
 st.markdown(
     """
-    <a href="https://t.me/TU_BOT_USERNAME" target="_blank">
+    <a href="https://t.me/@LTCAlertaBot" target="_blank">
         <button style="
             background: linear-gradient(45deg, #00f2fe, #4facfe);
             color: #000;
@@ -687,4 +687,5 @@ This disclaimer (“Disclaimer”) applies to the use of the service, algorithm,
 
 ### 10. User Acceptance
 By using the Service, the user **expressly accepts the terms** of this Disclaimer. If the user does not agree with any of these terms, they must **refrain from using the Service**.
+
 """, unsafe_allow_html=True)
