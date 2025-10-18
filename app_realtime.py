@@ -55,7 +55,7 @@ def send_telegram_message(message: str):
     try:
         bot_token = st.secrets["telegram"]["BOT_TOKEN"]
         chat_id = st.secrets["telegram"]["CHAT_ID"]
-        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"  # ✅ Sin espacios
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"  
         payload = {
             "chat_id": chat_id,
             "text": message,
@@ -64,6 +64,30 @@ def send_telegram_message(message: str):
         requests.post(url, data=payload)
     except Exception:
         pass
+
+    st.markdown("### 🤖 Invita el Bot de Alertas")
+st.markdown(
+    """
+    <a href="https://t.me/TU_BOT_USERNAME" target="_blank">
+        <button style="
+            background: linear-gradient(45deg, #00f2fe, #4facfe);
+            color: #000;
+            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 20px;
+            font-size: 16px;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.7);
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        ">
+            📲 Agregar Bot a Telegram
+        </button>
+    </a>
+    """,
+    unsafe_allow_html=True
+)
 
 # --- For news/sentiment ---
 try:
