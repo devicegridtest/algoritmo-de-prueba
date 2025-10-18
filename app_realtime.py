@@ -214,7 +214,7 @@ with st.sidebar:
     st.header("⚙️ Settings")
     tickers = [
         "BTC-USD", "ETH-USD",
-        "SOL-USD", "ADA-USD", "DOT-USD", "MATIC-USD", "LINK-USD",
+        "SOL-USD", "ADA-USD", "DOT-USD", "TRX-USD", "LINK-USD",
         "DOGE-USD", "SHIB-USD", 
         "XRP-USD", "LTC-USD", "NEXA-USD", "NODL-USD"
     ]
@@ -387,7 +387,7 @@ with st.expander("🤖 AI Prediction (Pre-trained LSTM)", expanded=False):
         st.warning(f"❌ No pre-trained model found for {ticker}. Please run `train_model.py` first.")
     else:
         try:
-            data_pred = yf.download(ticker, period="5d", interval="1h")
+            data_pred = yf.download(ticker, period="7d", interval="1h")
             # ✅ Aplanar aquí también
             if not data_pred.empty and isinstance(data_pred.columns, pd.MultiIndex):
                 data_pred.columns = data_pred.columns.get_level_values(0)
