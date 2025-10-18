@@ -6,8 +6,8 @@ scikit-learn>=1.4.0,<1.6.0
 prophet>=1.1.6
 tensorflow>=2.16.0  
 Telethon>=1.41.2
-newsapi-python>=0.2.6
 plotly>=5.22.0
 
 streamlit-autorefresh>=0.1.1
+
 
