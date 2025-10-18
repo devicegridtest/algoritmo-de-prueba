@@ -1,4 +1,4 @@
-# app_realtime.py
+ # app_realtime.py
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -168,7 +168,7 @@ def send_telegram_message(message: str):
     try:
         bot_token = st.secrets["telegram"]["BOT_TOKEN"]
         chat_id = st.secrets["telegram"]["CHAT_ID"]
-        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"  
+        url = f"https://api.telegram.org/bot  {bot_token}/sendMessage"  
         payload = {
             "chat_id": chat_id,
             "text": message,
@@ -178,12 +178,6 @@ def send_telegram_message(message: str):
     except Exception:
         pass
 
-# --- For news/sentiment ---
-try:
-    from newsapi import NewsApiClient
-    NEWSAPI_ENABLED = True
-except ImportError:
-    NEWSAPI_ENABLED = False
 
 # --- Global variables ---
 CURRENT_PRICE = 0.0
@@ -352,7 +346,7 @@ with st.sidebar:
     st.markdown("### 🤖 Invita el Bot de Alertas")
     st.markdown(
         """
-        <a href="https://t.me/LTCAlertaBot" target="_blank">
+        <a href="https://t.me/LTCAlertaBot  " target="_blank">
             <button style="
                 background: linear-gradient(45deg, #00f2fe, #4facfe);
                 color: #000;
@@ -617,38 +611,7 @@ with st.expander("📈 Future Prediction (3-day history)", expanded=False):
     else:
         st.info("ℹ️ Prophet model not available.")
 
-# --- NewsAPI News ---
-if enable_news and NEWSAPI_ENABLED:
-    st.markdown("---")
-    st.subheader("📰 Relevant News (NewsAPI)")
-    with st.spinner("🔍 Loading news..."):
-        api_key = ""
-        try:
-            if hasattr(st, 'secrets') and "NEWSAPI_KEY" in st.secrets:
-                api_key = st.secrets["NEWSAPI_KEY"]
-        except Exception:
-            api_key = ""
-        if not api_key:
-            st.info("ℹ️ NewsAPI key not configured.")
-        else:
-            try:
-                crypto_map = {ticker: ticker.split("-")[0] for ticker in tickers}
-                query = crypto_map.get(ticker, ticker.split("-")[0])
-                newsapi = NewsApiClient(api_key=api_key)
-                all_articles = newsapi.get_everything(q=query, language='en', sort_by='publishedAt', page_size=3)
-                if all_articles.get('status') == 'ok' and len(all_articles['articles']) > 0:
-                    for article in all_articles['articles']:
-                        st.markdown(f"""
-                        <div class="news-card">
-                            <b>{article['title']}</b><br>
-                            <span style="font-size:12px;">{article['source']['name']} — {article['publishedAt'][:10]}</span><br>
-                            <a href="{article['url']}" target="_blank" style="color:#0af;">Read more</a>
-                        </div>
-                        """, unsafe_allow_html=True)
-                else:
-                    st.info("ℹ️ No recent news found.")
-            except Exception as e:
-                st.error(f"❌ Error loading news: {str(e)}")
+
 
 # --- Telegram News ---
 if enable_telegram_news:
