@@ -8,19 +8,54 @@ from plotly.subplots import make_subplots
 import os
 import logging
 import pickle
-import requests  # <-- Para Telegram
+import requests
+import tempfile
 
 # --- Auto refresh every 60s ---
 from streamlit_autorefresh import st_autorefresh
 st_autorefresh(interval=60000, limit=None, key="datarefresh")
 
+# --- Telegram News Reader (lightweight) ---
+async def fetch_telegram_messages(channel_username: str, limit: int = 3):
+    try:
+        from telethon import TelegramClient
+        from telethon.tl.functions.messages import GetHistoryRequest
+        from telethon.tl.types import PeerChannel
+
+        api_id = st.secrets["telegram_api"]["API_ID"]
+        api_hash = st.secrets["telegram_api"]["API_HASH"]
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            client = TelegramClient(os.path.join(tmpdir, "session"), int(api_id), api_hash)
+            async with client:
+                entity = await client.get_entity(channel_username)
+                history = await client(GetHistoryRequest(
+                    peer=PeerChannel(entity.id),
+                    limit=limit,
+                    offset_id=0,
+                    max_id=0,
+                    min_id=0,
+                    add_offset=0,
+                    hash=0
+                ))
+                messages = []
+                for msg in history.messages:
+                    if hasattr(msg, 'message') and msg.message:
+                        messages.append({
+                            "text": msg.message[:300] + "..." if len(msg.message) > 300 else msg.message,
+                            "date": msg.date.strftime("%Y-%m-%d %H:%M") if msg.date else "",
+                            "views": getattr(msg, 'views', 0)
+                        })
+                return messages
+    except Exception as e:
+        return [{"text": f"⚠️ Error loading Telegram news: {str(e)}", "date": "", "views": 0}]
+
 # --- For Telegram alerts ---
 def send_telegram_message(message: str):
-    """Envía un mensaje a tu chat privado en Telegram."""
     try:
         bot_token = st.secrets["telegram"]["BOT_TOKEN"]
         chat_id = st.secrets["telegram"]["CHAT_ID"]
-        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"  # ✅ Sin espacios
         payload = {
             "chat_id": chat_id,
             "text": message,
@@ -28,7 +63,6 @@ def send_telegram_message(message: str):
         }
         requests.post(url, data=payload)
     except Exception:
-        # Silencioso si no hay secrets o hay error
         pass
 
 # --- For news/sentiment ---
@@ -45,12 +79,11 @@ DATA_UPDATED = False
 
 # --- FUNCTION TO FORMAT PRICES DYNAMICALLY ---
 def format_price_dynamic(price: float) -> str:
-    """Format price with adaptive decimals for cryptocurrencies."""
     if price >= 1:
         return f"${price:.2f}"
-    elif price >= 1e-4:  # >= 0.0001
+    elif price >= 1e-4:
         return f"${price:.6f}".rstrip('0').rstrip('.')
-    elif price >= 1e-8:  # >= 0.00000001
+    elif price >= 1e-8:
         return f"${price:.8f}".rstrip('0').rstrip('.')
     else:
         return f"${price:.2e}"
@@ -61,7 +94,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- FUTURISTIC CSS (including mobile keyboard fix + darker title) ---
+# --- FUTURISTIC CSS ---
 st.markdown("""
 <style>
 /* Animated dark background */
@@ -103,8 +136,6 @@ body {
     transform: scale(1.02);
 }
 
-/* 🎨 Custom style for the hamburger button (sidebar toggle) */
-/* We'll replace it via JS, but keep this for fallback */
 .stButton > button {
     background: linear-gradient(45deg, #00f2fe, #4facfe);
     color: #000;
@@ -123,7 +154,6 @@ body {
 }
 
 h1, h2, h3 {
-    /* 🎨 Título ligeramente más oscuro: de #0ff a #0af */
     text-shadow: 0 0 10px rgba(0, 170, 255, 0.8);
     color: #0af;
 }
@@ -147,7 +177,6 @@ h1, h2, h3 {
     box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
 }
 
-/* 🔑 FIX: Prevent keyboard from opening on mobile selectbox */
 .stSelectbox > div > div > input {
     -webkit-user-select: none !important;
     -moz-user-select: none !important;
@@ -184,13 +213,9 @@ valid_intervals = {
 with st.sidebar:
     st.header("⚙️ Settings")
     tickers = [
-        # Major
         "BTC-USD", "ETH-USD",
-        # Layer 1 & 2
         "SOL-USD", "ADA-USD", "DOT-USD", "MATIC-USD", "LINK-USD",
-        # Memecoins
         "DOGE-USD", "SHIB-USD", 
-        # Others
         "XRP-USD", "LTC-USD", "NEXA-USD", "NODL-USD"
     ]
     selected_ticker = st.selectbox("Cryptocurrency", tickers)
@@ -200,7 +225,15 @@ with st.sidebar:
     interval = st.selectbox("Interval", allowed_intervals, index=allowed_intervals.index(default_interval))
     enable_alerts = st.checkbox("🔔 RSI Alerts", value=True)
     enable_telegram = st.checkbox("📲 Telegram Alerts", value=False)
-    enable_news = st.checkbox("📰 News", value=False)
+    enable_news = st.checkbox("📰 NewsAPI News", value=False)
+    enable_telegram_news = st.checkbox("📡 Telegram News", value=False)
+    telegram_channels = {
+        "Bitcoin News": "bitcoinnews",
+        "Crypto Twitter": "cryptotwitter",
+        "Whale Alerts": "whale_alert"
+    }
+    if enable_telegram_news:
+        selected_channel = st.selectbox("Select Channel", list(telegram_channels.keys()))
     st.markdown("---")
     st.caption("🔄 Auto-refresh every 60s")
 
@@ -213,19 +246,20 @@ def add_indicators(df):
     df["MA10"] = df["Close"].rolling(10).mean()
     df["MA20"] = df["Close"].rolling(20).mean()
     df["EMA50"] = df["Close"].ewm(span=50, adjust=False).mean()
-    # RSI
+    df["EMA100"] = df["Close"].ewm(span=100, adjust=False).mean()
     delta = df['Close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
     rs = gain / loss
     df['RSI'] = 100 - (100 / (1 + rs))
-    # MACD
     exp12 = df['Close'].ewm(span=12, adjust=False).mean()
     exp26 = df['Close'].ewm(span=26, adjust=False).mean()
     df['MACD'] = exp12 - exp26
-    # Returns y volatility (igual que en train_model.py)
+    df['MACD_signal'] = df['MACD'].ewm(span=9, adjust=False).mean()
     df["returns"] = df["Close"].pct_change()
     df["volatility"] = df["returns"].rolling(20).std()
+    df["volume_ma"] = df["Volume"].rolling(20).mean()
+    df["volume_ratio"] = df["Volume"] / df["volume_ma"]
     df.dropna(inplace=True)
     return df
 
@@ -242,13 +276,8 @@ def load_trained_model_and_scaler(ticker):
     try:
         from tensorflow.keras.models import load_model
         from tensorflow.keras import losses
-
-        # Cargar el modelo SIN compilar para evitar errores de serialización
         model = load_model(model_path, compile=False)
-        
-        # Recompilar manualmente con la misma configuración usada en train_model.py
         model.compile(optimizer="adam", loss=losses.MeanSquaredError())
-
         with open(scaler_path, "rb") as f:
             scaler = pickle.load(f)
         return model, scaler
@@ -266,6 +295,9 @@ if 'last_best_prediction' not in st.session_state:
 def update_data():
     try:
         data = yf.download(ticker, period=period, interval=interval)
+        # ✅ Aplanar columnas si es MultiIndex
+        if not data.empty and isinstance(data.columns, pd.MultiIndex):
+            data.columns = data.columns.get_level_values(0)
         if data.empty or len(data) < 10:
             if st.session_state.data is not None and len(st.session_state.data) > 0:
                 return st.session_state.data
@@ -282,13 +314,13 @@ def update_data():
                 st.stop()
         return data
     except Exception as e:
-        st.error(f"🚨 Error downloading data: {e}")
+        st.error(f"🚨 Error downloading  {e}")
         if st.session_state.data is not None and len(st.session_state.data) > 0:
             return st.session_state.data
         else:
             st.stop()
 
-# --- Force refresh (original button, unchanged) ---
+# --- Force refresh ---
 if st.button("🔄 Force Refresh", use_container_width=True):
     st.session_state.data = update_data()
     st.rerun()
@@ -334,7 +366,6 @@ if enable_alerts:
         st.balloons()
         alert_message = f"✅ RSI Alert: {ticker} is OVERSOLD (RSI = {rsi_last:.2f})"
 
-# Enviar alerta de RSI por Telegram
 if alert_message and enable_telegram:
     send_telegram_message(alert_message)
 
@@ -348,36 +379,39 @@ st.download_button(
     use_container_width=True
 )
 
-# --- Short-term Predictions (using pre-trained model) ---
+# --- Short-term Predictions ---
 with st.expander("🤖 AI Prediction (Pre-trained LSTM)", expanded=False):
     model_lstm, scaler = load_trained_model_and_scaler(ticker)
 
     if model_lstm is None or scaler is None:
         st.warning(f"❌ No pre-trained model found for {ticker}. Please run `train_model.py` first.")
     else:
-        # Descargar datos recientes (usamos 1h como en train_model.py)
         try:
             data_pred = yf.download(ticker, period="5d", interval="1h")
+            # ✅ Aplanar aquí también
+            if not data_pred.empty and isinstance(data_pred.columns, pd.MultiIndex):
+                data_pred.columns = data_pred.columns.get_level_values(0)
             data_pred = add_indicators(data_pred)
             data_pred.dropna(inplace=True)
             
             if len(data_pred) < 70:
-                st.warning("⚠️ Not enough data for prediction (need ≥70 hourly points).")
+                st.warning("⚠️ Not enough data for prediction.")
             else:
-                feature_cols = ["Close", "RSI", "MACD", "Volume", "MA5", "MA10", "MA20", "EMA50", "returns", "volatility"]
+                feature_cols = [
+                    "Close", "RSI", "MACD", "MACD_signal", "Volume", 
+                    "MA5", "MA10", "MA20", "EMA50", "EMA100",
+                    "returns", "volatility", "volume_ratio"
+                ]
                 scaled_data = scaler.transform(data_pred[feature_cols])
                 seq_len = 60
                 
                 if len(scaled_data) >= seq_len:
                     last_sequence = scaled_data[-seq_len:].reshape(1, seq_len, len(feature_cols))
                     pred_scaled = model_lstm.predict(last_sequence, verbose=0)[0, 0]
-                    
-                    # Desescalar solo 'Close' (asumimos que es la columna 0)
                     dummy = np.zeros((1, len(feature_cols)))
                     dummy[0, 0] = pred_scaled
                     pred_price = scaler.inverse_transform(dummy)[0, 0]
                     
-                    # Mostrar
                     change_pct_pred = ((pred_price - current_price) / current_price) * 100
                     st.subheader("Next Hour Prediction")
                     col1, col2 = st.columns(2)
@@ -386,7 +420,6 @@ with st.expander("🤖 AI Prediction (Pre-trained LSTM)", expanded=False):
                     
                     st.session_state.best_prediction = float(pred_price)
                     
-                    # Alerta si cambia significativamente
                     if 'last_best_prediction' in st.session_state and st.session_state.last_best_prediction != 0:
                         last_pred = st.session_state.last_best_prediction
                         change = ((pred_price - last_pred) / last_pred) * 100
@@ -394,7 +427,6 @@ with st.expander("🤖 AI Prediction (Pre-trained LSTM)", expanded=False):
                             if change > 0:
                                 st.success(f"📈 Prediction ↑ {change:.2f}% → {format_price_dynamic(pred_price)}")
                                 st.balloons()
-                                # Enviar alerta de predicción por Telegram
                                 if enable_telegram:
                                     pred_msg = f"📈 Prediction Alert: {ticker} ↑ {change:.2f}%\nNew prediction: {format_price_dynamic(pred_price)}"
                                     send_telegram_message(pred_msg)
@@ -409,7 +441,7 @@ with st.expander("🤖 AI Prediction (Pre-trained LSTM)", expanded=False):
         except Exception as e:
             st.error(f"🚨 Error during prediction: {e}")
 
-# --- Future Prediction (30-day history, hourly) ---
+# --- Future Prediction (Prophet) ---
 with st.expander("📈 Future Prediction (3-day history)", expanded=False):
     try:
         from prophet import Prophet
@@ -449,10 +481,10 @@ with st.expander("📈 Future Prediction (3-day history)", expanded=False):
     else:
         st.info("ℹ️ Prophet model not available.")
 
-# --- News ---
+# --- NewsAPI News ---
 if enable_news and NEWSAPI_ENABLED:
     st.markdown("---")
-    st.subheader("📰 Relevant News")
+    st.subheader("📰 Relevant News (NewsAPI)")
     with st.spinner("🔍 Loading news..."):
         api_key = ""
         try:
@@ -461,33 +493,13 @@ if enable_news and NEWSAPI_ENABLED:
         except Exception:
             api_key = ""
         if not api_key:
-            st.info("ℹ️ NewsAPI key not configured. Add it in Streamlit Cloud Secrets.")
+            st.info("ℹ️ NewsAPI key not configured.")
         else:
             try:
-                crypto_map = {
-                    "BTC-USD": "Bitcoin",
-                    "ETH-USD": "Ethereum",
-                    "SOL-USD": "Solana",
-                    "ADA-USD": "Cardano",
-                    "DOT-USD": "Polkadot",
-                    "MATIC-USD": "Polygon",
-                    "LINK-USD": "Chainlink",
-                    "DOGE-USD": "Dogecoin",
-                    "SHIB-USD": "Shiba Inu",
-                    "PEPE-USD": "Pepe",
-                    "XRP-USD": "XRP",
-                    "LTC-USD": "Litecoin",
-                    "NEXA-USD": "Nexa",
-                    "NODL-USD": "Nodle"
-                }
+                crypto_map = {ticker: ticker.split("-")[0] for ticker in tickers}
                 query = crypto_map.get(ticker, ticker.split("-")[0])
                 newsapi = NewsApiClient(api_key=api_key)
-                all_articles = newsapi.get_everything(
-                    q=query,
-                    language='en',
-                    sort_by='publishedAt',
-                    page_size=3
-                )
+                all_articles = newsapi.get_everything(q=query, language='en', sort_by='publishedAt', page_size=3)
                 if all_articles.get('status') == 'ok' and len(all_articles['articles']) > 0:
                     for article in all_articles['articles']:
                         st.markdown(f"""
@@ -501,6 +513,29 @@ if enable_news and NEWSAPI_ENABLED:
                     st.info("ℹ️ No recent news found.")
             except Exception as e:
                 st.error(f"❌ Error loading news: {str(e)}")
+
+# --- Telegram News ---
+if enable_telegram_news:
+    st.markdown("---")
+    st.subheader("📡 Telegram Channel News")
+    channel_username = telegram_channels[selected_channel]
+    
+    with st.spinner(f"Loading messages from @{channel_username}..."):
+        try:
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            messages = loop.run_until_complete(fetch_telegram_messages(channel_username))
+            
+            for msg in messages[:3]:
+                st.markdown(f"""
+                <div class="news-card">
+                    <b>{msg['date']}</b> 👁️ {msg['views']}<br>
+                    {msg['text']}
+                </div>
+                """, unsafe_allow_html=True)
+        except Exception as e:
+            st.error(f"❌ Failed to load Telegram news: {e}")
 
 # --- Interactive chart ---
 st.subheader("📊 Interactive Chart (Zoom + Hover + Prediction)")
@@ -580,10 +615,10 @@ st.plotly_chart(fig, use_container_width=True)
 st.markdown("---")
 st.caption("🔁 This app auto-refreshes every 60 seconds.")
 
-# --- 💡 JavaScript to replace the sidebar toggle icon with a neon ">>" ---
+# --- JavaScript for sidebar icon ---
 st.markdown(
     """
-    <style>
+    <style> 
     .neon-arrow {
         font-size: 16px;
         font-weight: bold;
@@ -598,30 +633,19 @@ st.markdown(
         text-shadow: 0 0 12px #0ff, 0 0 20px #0ff;
         transform: scale(1.1);
     }
-    </style>
-
-    <script>
-    // Wait for DOM to be ready
+      </style>
+    <script> 
     const observer = new MutationObserver(() => {
         const hamburger = document.querySelector('.css-1v0mbdj');
         if (hamburger && !hamburger.classList.contains('neon-replaced')) {
-            // Hide the original hamburger
             hamburger.style.visibility = 'hidden';
             hamburger.style.position = 'absolute';
             hamburger.style.opacity = '0';
-
-            // Create our custom neon >> icon
             const neonArrow = document.createElement('span');
             neonArrow.className = 'neon-arrow neon-replaced';
             neonArrow.innerHTML = '>>';
-            neonArrow.onclick = () => {
-                // Trigger the original toggle
-                hamburger.click();
-            };
-
-            // Insert before the original hamburger
+            neonArrow.onclick = () => { hamburger.click(); };
             hamburger.parentNode.insertBefore(neonArrow, hamburger);
-
             observer.disconnect();
         }
     });
@@ -631,42 +655,12 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# ==============================
-# DISCLAIMER
-# ==============================
+# --- DISCLAIMER ---
 st.markdown("---")
 st.markdown("## 🧾 Disclaimer")
-
 st.markdown("""
-This disclaimer (“Disclaimer”) applies to the use of the service, algorithm, web application, or platform accessible at **[algoritmo-de-prueba-6kfppv5cggvmkxzkxvrr5s.streamlit.app]** (hereinafter referred to as the “Service”).
-
-### 1. Informational / Testing Purpose
-The Service is provided solely for **testing**, **demonstration**, **research**, or **informational purposes**, and **does not guarantee accuracy, completeness, or suitability** for any specific purpose. The results, predictions, suggestions, or analyses generated by the algorithm should be considered **indicative only** and not as definitive advice.
-
-### 2. No Professional Advice
-Nothing in the Service should be construed as **legal, medical, financial, accounting, or any other type of professional advice**. Users should not make significant decisions based solely on the output of the algorithm without consulting qualified professionals in the corresponding field.
-
-### 3. No Warranties
-The Service is provided “as is” and “as available,” without any warranties of any kind, either express or implied, including but not limited to **warranties of merchantability, fitness for a particular purpose, accuracy, or non-infringement** of third-party rights.
-
-### 4. Limitation of Liability
-In no event shall the providers of the Service (developers, owners, operators) be liable for **any direct, indirect, incidental, special, punitive, or consequential damages**, including but not limited to loss of profits, data, reputation, or any other loss or damage, even if advised of the possibility of such damages, arising from the use or inability to use the Service.
-
-### 5. Data Reliability / User Inputs
-The results depend on the **quality, completeness, and accuracy of the data** or parameters entered by the user. It is not guaranteed that the algorithm is immune to errors, inconsistencies, or biases inherent in the input data or the model used.
-
-### 6. Changes, Interruptions, and Modifications
-The Service provider reserves the right to **modify, suspend, or discontinue** the Service, in whole or in part, temporarily or permanently, with or without notice. The provider shall not be liable for any damages resulting from such modifications or interruptions.
-
-### 7. Intellectual Property and Licenses
-Unless expressly stated otherwise, all **rights, titles, patents, copyrights, trademarks, and other intellectual property rights** related to the algorithm, source code, documentation, and other components are the exclusive property of the Service provider or its licensors.
-
-### 8. Privacy and Data Protection
-Any data entered by users will be subject to the **privacy policy and terms of use** applicable to the Service. The user declares that they possess the necessary rights to the data they provide and assume full responsibility for its use.
-
-### 9. Jurisdiction and Governing Law
-This Disclaimer shall be governed by and construed in accordance with the laws of the **United States**, without regard to its conflict of law provisions. Any dispute related to this Disclaimer shall be submitted to the exclusive jurisdiction of the **competent courts of the State of California**.
+This disclaimer (“Disclaimer”) applies to the use of the service, algorithm, web application, or platform accessible at **[algoritmo-de-prueba-6kfppv5cggvmkxzkxvrr5s.streamlit.app]**...
 
 ### 10. User Acceptance
 By using the Service, the user **expressly accepts the terms** of this Disclaimer. If the user does not agree with any of these terms, they must **refrain from using the Service**.
-""")
+""", unsafe_allow_html=True)
