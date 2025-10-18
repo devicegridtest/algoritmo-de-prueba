@@ -1,4 +1,4 @@
- # app_realtime.py
+# app_realtime.py
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -9,11 +9,9 @@ import os
 import logging
 import pickle
 import requests
-import tempfile
 import threading
 import time
 import datetime
-import logging
 import traceback
 
 # --- Configurar logging ---
@@ -34,7 +32,6 @@ def hourly_alerts_background():
             next_hour = (now + datetime.timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
             seconds_until_next = (next_hour - now).total_seconds()
 
-            # --- Ejecutar función principal ---
             logging.info("🚀 Ejecutando send_global_alerts()...")
             send_global_alerts()
             logging.info("✅ Ejecución completada correctamente.")
@@ -43,10 +40,8 @@ def hourly_alerts_background():
             logging.error(f"❌ Error en send_global_alerts(): {e}")
             logging.error(traceback.format_exc())
 
-        # Esperar hasta la próxima hora exacta
         logging.info(f"⏰ Esperando {int(seconds_until_next)} segundos hasta {next_hour.strftime('%H:%M')}.")
         time.sleep(seconds_until_next)
-
 
 # --- Lanzar el hilo solo una vez ---
 if "alerts_thread" not in st.session_state:
@@ -66,7 +61,6 @@ def send_global_alerts():
     """Revisa todas las monedas y envía alertas a Telegram."""
     for ticker in ALL_TICKERS:
         try:
-            # Descargar datos recientes (últimas 24h en intervalos de 1h)
             data = yf.download(ticker, period="1d", interval="1h")
             if data.empty or len(data) < 10:
                 continue
@@ -74,19 +68,16 @@ def send_global_alerts():
             if data.empty:
                 continue
 
-            # --- RSI Alert ---
             rsi_last = float(data['RSI'].iloc[-1])
             if rsi_last > 70:
                 send_telegram_message(f"⚠️ RSI Alert: {ticker} is OVERBOUGHT (RSI = {rsi_last:.2f})")
             elif rsi_last < 30:
                 send_telegram_message(f"✅ RSI Alert: {ticker} is OVERSOLD (RSI = {rsi_last:.2f})")
 
-            # --- Prediction Alert ---
             model, scaler = load_trained_model_and_scaler(ticker)
             if model is None or scaler is None:
                 continue
 
-            # Descargar datos para predicción (5 días)
             data_pred = yf.download(ticker, period="5d", interval="1h")
             if data_pred.empty or len(data_pred) < 70:
                 continue
@@ -121,54 +112,18 @@ def send_global_alerts():
                 )
 
         except Exception:
-            # Silencioso en producción
             pass
-        
+
 # --- Auto refresh every 60s ---
 from streamlit_autorefresh import st_autorefresh
 st_autorefresh(interval=60000, limit=None, key="datarefresh")
-
-# --- Telegram News Reader (lightweight) ---
-async def fetch_telegram_messages(channel_username: str, limit: int = 3):
-    try:
-        from telethon import TelegramClient
-        from telethon.tl.functions.messages import GetHistoryRequest
-        from telethon.tl.types import PeerChannel
-
-        api_id = st.secrets["telegram_api"]["API_ID"]
-        api_hash = st.secrets["telegram_api"]["API_HASH"]
-        
-        with tempfile.TemporaryDirectory() as tmpdir:
-            client = TelegramClient(os.path.join(tmpdir, "session"), int(api_id), api_hash)
-            async with client:
-                entity = await client.get_entity(channel_username)
-                history = await client(GetHistoryRequest(
-                    peer=PeerChannel(entity.id),
-                    limit=limit,
-                    offset_id=0,
-                    max_id=0,
-                    min_id=0,
-                    add_offset=0,
-                    hash=0
-                ))
-                messages = []
-                for msg in history.messages:
-                    if hasattr(msg, 'message') and msg.message:
-                        messages.append({
-                            "text": msg.message[:300] + "..." if len(msg.message) > 300 else msg.message,
-                            "date": msg.date.strftime("%Y-%m-%d %H:%M") if msg.date else "",
-                            "views": getattr(msg, 'views', 0)
-                        })
-                return messages
-    except Exception as e:
-        return [{"text": f"⚠️ Error loading Telegram news: {str(e)}", "date": "", "views": 0}]
 
 # --- For Telegram alerts (AUTOMATIC) ---
 def send_telegram_message(message: str):
     try:
         bot_token = st.secrets["telegram"]["BOT_TOKEN"]
         chat_id = st.secrets["telegram"]["CHAT_ID"]
-        url = f"https://api.telegram.org/bot  {bot_token}/sendMessage"  
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"  # Corregido: sin espacio
         payload = {
             "chat_id": chat_id,
             "text": message,
@@ -178,6 +133,35 @@ def send_telegram_message(message: str):
     except Exception:
         pass
 
+# --- Fetch CryptoPanic News ---
+def fetch_cryptopanic_news(ticker_symbol: str, limit: int = 3):
+    try:
+        api_token = st.secrets["cryptopanic"]["API_TOKEN"]
+        symbol_map = {
+            "BTC-USD": "BTC", "ETH-USD": "ETH", "SOL-USD": "SOL",
+            "ADA-USD": "ADA", "DOT-USD": "DOT", "TRX-USD": "TRX",
+            "LINK-USD": "LINK", "DOGE-USD": "DOGE", "SHIB-USD": "SHIB",
+            "XRP-USD": "XRP", "LTC-USD": "LTC", "NEXA-USD": "NEXA",
+            "NODL-USD": "NODL"
+        }
+        symbol = symbol_map.get(ticker_symbol, "BTC")
+
+        url = f"https://cryptopanic.com/api/v1/posts/?auth_token={api_token}&currencies={symbol}&public=true"
+        response = requests.get(url, timeout=10)
+        if response.status_code != 200:
+            return [{"title": "⚠️ Error: API limit reached or invalid token", "published_at": "", "url": "#"}]
+
+        data = response.json()
+        news_list = []
+        for item in data.get("results", [])[:limit]:
+            news_list.append({
+                "title": item.get("title", "No title"),
+                "published_at": item.get("published_at", "")[:10] if item.get("published_at") else "",
+                "url": item.get("url", "#")
+            })
+        return news_list
+    except Exception as e:
+        return [{"title": f"⚠️ Error loading news: {str(e)}", "published_at": "", "url": "#"}]
 
 # --- Global variables ---
 CURRENT_PRICE = 0.0
@@ -202,102 +186,20 @@ st.set_page_config(
 )
 
 # --- FUTURISTIC CSS ---
-st.markdown("""
-<style>
-/* Animated dark background */
-body {
-    background: linear-gradient(-45deg, #0f0c29, #302b63, #24243e, #0f0c29);
-    background-size: 400% 400%;
-    animation: gradientBG 20s ease infinite;
-    color: #ffffff;
-    margin: 0;
-    padding: 0;
-}
-@keyframes gradientBG {
-    0% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
-}
-/* Remove top margin */
-.css-18ni7ap, header, .stApp {
-    margin-top: 0 !important;
-    padding-top: 0 !important;
-}
-/* Cards and styles */
-.metric-card {
-    background: rgba(0, 40, 60, 0.3);
-    border-radius: 12px;
-    padding: 15px;
-    box-shadow: 0 0 15px rgba(0, 255, 255, 0.4);
-    margin-bottom: 20px;
-}
-.stMetric {
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 10px;
-    padding: 10px;
-    box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
-    transition: all 0.3s ease;
-}
-.stMetric:hover {
-    box-shadow: 0 0 20px rgba(0, 255, 255, 0.8);
-    transform: scale(1.02);
-}
-
-.stButton > button {
-    background: linear-gradient(45deg, #00f2fe, #4facfe);
-    color: #000;
-    font-weight: bold;
-    border: none;
-    border-radius: 8px;
-    padding: 10px 20px;
-    font-size: 14px;
-    box-shadow: 0 0 15px rgba(0, 255, 255, 0.7);
-    transition: all 0.3s ease;
-}
-.stButton > button:hover {
-    background: linear-gradient(45deg, #4facfe, #00f2fe);
-    box-shadow: 0 0 25px rgba(0, 255, 255, 1);
-    transform: scale(1.05);
-}
-
-h1, h2, h3 {
-    text-shadow: 0 0 10px rgba(0, 170, 255, 0.8);
-    color: #0af;
-}
-.plotly-graph-div {
-    background: #0f0c29 !important;
-    border-radius: 10px;
-    padding: 10px;
-    box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
-}
-.news-card {
-    padding: 12px;
-    background: rgba(0, 255, 255, 0.05);
-    border-radius: 10px;
-    margin-bottom: 12px;
-    border-left: 3px solid #0af;
-}
-.stExpander {
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 10px;
-    padding: 10px;
-    box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
-}
-
-.stSelectbox > div > div > input {
-    -webkit-user-select: none !important;
-    -moz-user-select: none !important;
-    -ms-user-select: none !important;
-    user-select: none !important;
-    pointer-events: none !important;
-}
-.stSelectbox {
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;
-}
-</style>
-""", unsafe_allow_html=True)
+st.markdown("""<style>
+body { background: linear-gradient(-45deg, #0f0c29, #302b63, #24243e, #0f0c29); background-size: 400% 400%; animation: gradientBG 20s ease infinite; color: #ffffff; margin: 0; padding: 0; }
+@keyframes gradientBG { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+.css-18ni7ap, header, .stApp { margin-top: 0 !important; padding-top: 0 !important; }
+.metric-card { background: rgba(0, 40, 60, 0.3); border-radius: 12px; padding: 15px; box-shadow: 0 0 15px rgba(0, 255, 255, 0.4); margin-bottom: 20px; }
+.stMetric { background: rgba(255, 255, 255, 0.05); border-radius: 10px; padding: 10px; box-shadow: 0 0 10px rgba(0, 255, 255, 0.5); transition: all 0.3s ease; }
+.stMetric:hover { box-shadow: 0 0 20px rgba(0, 255, 255, 0.8); transform: scale(1.02); }
+.stButton > button { background: linear-gradient(45deg, #00f2fe, #4facfe); color: #000; font-weight: bold; border: none; border-radius: 8px; padding: 10px 20px; font-size: 14px; box-shadow: 0 0 15px rgba(0, 255, 255, 0.7); transition: all 0.3s ease; }
+.stButton > button:hover { background: linear-gradient(45deg, #4facfe, #00f2fe); box-shadow: 0 0 25px rgba(0, 255, 255, 1); transform: scale(1.05); }
+h1, h2, h3 { text-shadow: 0 0 10px rgba(0, 170, 255, 0.8); color: #0af; }
+.plotly-graph-div { background: #0f0c29 !important; border-radius: 10px; padding: 10px; box-shadow: 0 0 15px rgba(0, 255, 255, 0.5); }
+.news-card { padding: 12px; background: rgba(0, 255, 255, 0.05); border-radius: 10px; margin-bottom: 12px; border-left: 3px solid #0af; }
+.stExpander { background: rgba(255, 255, 255, 0.05); border-radius: 10px; padding: 10px; box-shadow: 0 0 10px rgba(0, 255, 255, 0.5); }
+</style>""", unsafe_allow_html=True)
 
 # --- DGT LOGO ---
 logo_base64 = "data:image/png;base64,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"
@@ -331,22 +233,13 @@ with st.sidebar:
     default_interval = "1m" if "1m" in allowed_intervals else allowed_intervals[0]
     interval = st.selectbox("Interval", allowed_intervals, index=allowed_intervals.index(default_interval))
     enable_alerts = st.checkbox("🔔 RSI Alerts", value=True)
-    enable_news = st.checkbox("📰 NewsAPI News", value=False)
-    enable_telegram_news = st.checkbox("📡 Telegram News", value=False)
-    telegram_channels = {
-        "Bitcoin News": "bitcoinnews",
-        "Crypto Twitter": "cryptotwitter",
-        "Whale Alerts": "whale_alert"
-    }
-    if enable_telegram_news:
-        selected_channel = st.selectbox("Select Channel", list(telegram_channels.keys()))
+    enable_news = st.checkbox("📰 CryptoPanic News", value=False)
     
     st.markdown("---")
-    # ✅ Botón de invitación (dentro del sidebar)
     st.markdown("### 🤖 Invita el Bot de Alertas")
     st.markdown(
         """
-        <a href="https://t.me/LTCAlertaBot  " target="_blank">
+        <a href="https://t.me/LTCAlertaBot" target="_blank">
             <button style="
                 background: linear-gradient(45deg, #00f2fe, #4facfe);
                 color: #000;
@@ -497,7 +390,6 @@ if enable_alerts:
         st.balloons()
         alert_message = f"✅ RSI Alert: {ticker} is OVERSOLD (RSI = {rsi_last:.2f})"
 
-# ✅ Enviar SIEMPRE si hay alerta (sin checkbox)
 if alert_message:
     send_telegram_message(alert_message)
 
@@ -558,7 +450,6 @@ with st.expander("🤖 AI Prediction (Pre-trained LSTM)", expanded=False):
                             if change > 0:
                                 st.success(f"📈 Prediction ↑ {change:.2f}% → {format_price_dynamic(pred_price)}")
                                 st.balloons()
-                                # ✅ Enviar alerta de predicción automáticamente
                                 pred_msg = f"📈 Prediction Alert: {ticker} ↑ {change:.2f}%\nNew prediction: {format_price_dynamic(pred_price)}"
                                 send_telegram_message(pred_msg)
                             else:
@@ -611,30 +502,21 @@ with st.expander("📈 Future Prediction (3-day history)", expanded=False):
     else:
         st.info("ℹ️ Prophet model not available.")
 
-
-
-# --- Telegram News ---
-if enable_telegram_news:
+# --- CryptoPanic News ---
+if enable_news:
     st.markdown("---")
-    st.subheader("📡 Telegram Channel News")
-    channel_username = telegram_channels[selected_channel]
-    
-    with st.spinner(f"Loading messages from @{channel_username}..."):
-        try:
-            import asyncio
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            messages = loop.run_until_complete(fetch_telegram_messages(channel_username))
-            
-            for msg in messages[:3]:
-                st.markdown(f"""
-                <div class="news-card">
-                    <b>{msg['date']}</b> 👁️ {msg['views']}<br>
-                    {msg['text']}
-                </div>
-                """, unsafe_allow_html=True)
-        except Exception as e:
-            st.error(f"❌ Failed to load Telegram news: {e}")
+    st.subheader("📰 CryptoPanic News")
+    with st.spinner("Loading latest crypto news..."):
+        news_items = fetch_cryptopanic_news(ticker)
+        for item in news_items[:3]:
+            st.markdown(f"""
+            <div class="news-card">
+                <b>{item['published_at']}</b><br>
+                <a href="{item['url']}" target="_blank" style="color:#0af; text-decoration: none;">
+                    {item['title']}
+                </a>
+            </div>
+            """, unsafe_allow_html=True)
 
 # --- Interactive chart ---
 st.subheader("📊 Interactive Chart (Zoom + Hover + Prediction)")
