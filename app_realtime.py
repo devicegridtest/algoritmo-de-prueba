@@ -320,29 +320,30 @@ if 'last_best_prediction' not in st.session_state:
 def update_data():
     try:
         data = yf.download(ticker, period=period, interval=interval)
-        if not data.empty and isinstance(data.columns, pd.MultiIndex):
-            data.columns = data.columns.get_level_values(0)
-        if data.empty or len(data) < 10:
-            if st.session_state.data is not None and len(st.session_state.data) > 0:
-                return st.session_state.data
-            else:
-                st.error("❌ No data available.")
-                st.stop()
-        data = add_indicators(data)
-        data.dropna(inplace=True)
         if data.empty:
-            if st.session_state.data is not None and len(st.session_state.data) > 0:
+            st.error("❌ No data downloaded from Yahoo Finance.")
+            st.stop()
+
+        if isinstance(data.columns, pd.MultiIndex):
+            data.columns = data.columns.get_level_values(0)
+
+        # Requerir mínimo de filas antes de indicadores
+        if len(data) < 30:
+            st.warning(f"⚠️ Too few data points ({len(data)}). Try period='5d' or '1mo'.")
+            if st.session_state.data is not None:
                 return st.session_state.data
             else:
-                st.error("⚠️ Insufficient data after indicator calculation.")
                 st.stop()
+
+        data = add_indicators(data)
+        if data.empty:
+            st.error("❌ Data became empty after adding indicators. Try a longer period.")
+            st.stop()
+
         return data
     except Exception as e:
-        st.error(f"🚨 Error downloading  {e}")
-        if st.session_state.data is not None and len(st.session_state.data) > 0:
-            return st.session_state.data
-        else:
-            st.stop()
+        st.exception(e)
+        st.stop()
 
 # --- Force refresh ---
 if st.button("🔄 Force Refresh", use_container_width=True):
