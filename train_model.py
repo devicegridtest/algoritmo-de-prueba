@@ -17,7 +17,7 @@ import os
 COIN_IDS = [
     "bitcoin",          # BTC
     "ethereum",         # ETH
-    "tron",             # MATIC/POL ✅ (ID correcto)
+    "tron",             # TRX
     "chainlink",        # LINK
     "dogecoin",         # DOGE
     "shiba-inu",        # SHIB
