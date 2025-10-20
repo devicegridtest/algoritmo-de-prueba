@@ -1,4 +1,3 @@
-# app_realtime.py
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -14,7 +13,7 @@ import time
 import datetime
 import traceback
 
-# --- Configurar logging ---
+
 logging.basicConfig(
     filename="alerts.log",
     level=logging.INFO,
@@ -23,7 +22,7 @@ logging.basicConfig(
 )
 
 def hourly_alerts_background():
-    """Hilo que ejecuta send_global_alerts() cada hora en punto, sin bloquear Streamlit."""
+    """Hilo que ejecuta send_global_alerts() cada hora."""
     logging.info("🟢 Servicio de alertas iniciado (modo background Streamlit).")
     
     while True:
@@ -43,20 +42,20 @@ def hourly_alerts_background():
         logging.info(f"⏰ Esperando {int(seconds_until_next)} segundos hasta {next_hour.strftime('%H:%M')}.")
         time.sleep(seconds_until_next)
 
-# --- Lanzar el hilo solo una vez ---
+
 if "alerts_thread" not in st.session_state:
     st.session_state.alerts_thread = threading.Thread(target=hourly_alerts_background, daemon=True)
     st.session_state.alerts_thread.start()
     st.toast("🚀 Servicio de alertas iniciado en segundo plano.", icon="✅")
 
-# --- Lista global de todas las monedas ---
+
 ALL_TICKERS = [
     "BTC-USD", "ETH-USD", "SOL-USD", "ADA-USD", "DOT-USD", 
-    "TRX-USD", "LINK-USD", "DOGE-USD", "SHIB-USD", 
+    "MATIC-USD", "LINK-USD", "DOGE-USD", "SHIB-USD", 
     "XRP-USD", "LTC-USD", "NEXA-USD", "NODL-USD"
 ]
 
-# --- Función para enviar alertas globales ---
+
 def send_global_alerts():
     """Revisa todas las monedas y envía alertas a Telegram."""
     for ticker in ALL_TICKERS:
@@ -114,11 +113,11 @@ def send_global_alerts():
         except Exception:
             pass
 
-# --- Auto refresh every 60s ---
+
 from streamlit_autorefresh import st_autorefresh
 st_autorefresh(interval=60000, limit=None, key="datarefresh")
 
-# --- For Telegram alerts (AUTOMATIC) ---
+
 def send_telegram_message(message: str):
     try:
         bot_token = st.secrets["telegram"]["BOT_TOKEN"]
@@ -133,13 +132,13 @@ def send_telegram_message(message: str):
     except Exception:
         pass
 
-# --- Fetch CryptoPanic News ---
+
 def fetch_cryptopanic_news(ticker_symbol: str, limit: int = 3):
     try:
         api_token = st.secrets["cryptopanic"]["API_TOKEN"]
         symbol_map = {
             "BTC-USD": "BTC", "ETH-USD": "ETH", "SOL-USD": "SOL",
-            "ADA-USD": "ADA", "DOT-USD": "DOT", "TRX-USD": "TRX",
+            "ADA-USD": "ADA", "DOT-USD": "DOT", "MATIC-USD": "TRX",
             "LINK-USD": "LINK", "DOGE-USD": "DOGE", "SHIB-USD": "SHIB",
             "XRP-USD": "XRP", "LTC-USD": "LTC", "NEXA-USD": "NEXA",
             "NODL-USD": "NODL"
@@ -163,12 +162,12 @@ def fetch_cryptopanic_news(ticker_symbol: str, limit: int = 3):
     except Exception as e:
         return [{"title": f"⚠️ Error loading news: {str(e)}", "published_at": "", "url": "#"}]
 
-# --- Global variables ---
+
 CURRENT_PRICE = 0.0
 RSI_LAST = 0.0
 DATA_UPDATED = False
 
-# --- FUNCTION TO FORMAT PRICES DYNAMICALLY ---
+
 def format_price_dynamic(price: float) -> str:
     if price >= 1:
         return f"${price:.2f}"
@@ -185,7 +184,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- FUTURISTIC CSS ---
+
 st.markdown("""<style>
 body { background: linear-gradient(-45deg, #0f0c29, #302b63, #24243e, #0f0c29); background-size: 400% 400%; animation: gradientBG 20s ease infinite; color: #ffffff; margin: 0; padding: 0; }
 @keyframes gradientBG { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
@@ -201,7 +200,7 @@ h1, h2, h3 { text-shadow: 0 0 10px rgba(0, 170, 255, 0.8); color: #0af; }
 .stExpander { background: rgba(255, 255, 255, 0.05); border-radius: 10px; padding: 10px; box-shadow: 0 0 10px rgba(0, 255, 255, 0.5); }
 </style>""", unsafe_allow_html=True)
 
-# --- DGT LOGO ---
+
 logo_base64 = "data:image/png;base64,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"
 
 st.markdown(f"""
@@ -211,19 +210,19 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- VALIDATION OF PERIOD/INTERVAL ---
+
 valid_intervals = {
     "1d": ["1m", "5m", "15m", "30m", "1h"],
     "5d": ["1m", "5m", "15m", "30m", "1h"],
     "1mo": ["5m", "15m", "30m", "1h", "1d"]
 }
 
-# --- SIDEBAR ---
+
 with st.sidebar:
     st.header("⚙️ Settings")
     tickers = [
         "BTC-USD", "ETH-USD",
-        "SOL-USD", "ADA-USD", "DOT-USD", "TRX-USD", "LINK-USD",
+        "SOL-USD", "ADA-USD", "DOT-USD", "MATIC-USD", "LINK-USD",
         "DOGE-USD", "SHIB-USD", 
         "XRP-USD", "LTC-USD", "NEXA-USD", "NODL-USD"
     ]
@@ -264,7 +263,7 @@ with st.sidebar:
 
 ticker = selected_ticker
 
-# --- Helper functions ---
+
 def add_indicators(df):
     df = df.copy()
     df["MA5"] = df["Close"].rolling(5).mean()
@@ -288,7 +287,7 @@ def add_indicators(df):
     df.dropna(inplace=True)
     return df
 
-# --- Load PRE-TRAINED model and scaler ---
+
 @st.cache_resource
 def load_trained_model_and_scaler(ticker):
     model_dir = "models"
@@ -310,46 +309,47 @@ def load_trained_model_and_scaler(ticker):
         st.warning(f"⚠️ Error loading model/scaler for {ticker}: {e}")
         return None, None
 
-# --- State ---
+
 if 'data' not in st.session_state:
     st.session_state.data = None
 if 'last_best_prediction' not in st.session_state:
     st.session_state.last_best_prediction = 0.0
 
-# --- Update data (for display) ---
+
 def update_data():
     try:
-        data = yf.download(ticker, period=period, interval=interval)
-        if not data.empty and isinstance(data.columns, pd.MultiIndex):
-            data.columns = data.columns.get_level_values(0)
-        if data.empty or len(data) < 10:
-            if st.session_state.data is not None and len(st.session_state.data) > 0:
+        data = yf.download(ticker, period=period, interval=interval, auto_adjust=True)
+        if data.empty:
+            st.warning(f"⚠️ No data for {ticker} with period={period}, interval={interval}")
+            if st.session_state.data is not None:
                 return st.session_state.data
             else:
-                st.error("❌ No data available.")
                 st.stop()
+        # Asegúrate de que no sea MultiIndex
+        if isinstance(data.columns, pd.MultiIndex):
+            data.columns = data.columns.get_level_values(0)
         data = add_indicators(data)
         data.dropna(inplace=True)
         if data.empty:
-            if st.session_state.data is not None and len(st.session_state.data) > 0:
+            st.warning("⚠️ Data became empty after adding indicators.")
+            if st.session_state.data is not None:
                 return st.session_state.data
             else:
-                st.error("⚠️ Insufficient data after indicator calculation.")
                 st.stop()
         return data
     except Exception as e:
-        st.error(f"🚨 Error downloading  {e}")
-        if st.session_state.data is not None and len(st.session_state.data) > 0:
+        st.error(f"🚨 Error downloading data: {e}")
+        if st.session_state.data is not None:
             return st.session_state.data
         else:
             st.stop()
 
-# --- Force refresh ---
+
 if st.button("🔄 Force Refresh", use_container_width=True):
     st.session_state.data = update_data()
     st.rerun()
 
-# --- Load data for display ---
+
 with st.spinner("🌐 Loading real-time data..."):
     data = update_data()
 
@@ -362,7 +362,7 @@ if data is None or data.empty:
 
 st.session_state.data = data
 
-# --- Metrics ---
+
 current_price = float(data['Close'].iloc[-1])
 first_open = float(data['Open'].iloc[0])
 last_close = float(data['Close'].iloc[-1])
@@ -376,7 +376,7 @@ with st.container():
     col3.metric("🤖 Model", "Pre-trained LSTM" if load_trained_model_and_scaler(ticker)[0] else "Not available")
     st.markdown('</div>', unsafe_allow_html=True)
 
-# --- RSI Alerts + Telegram (AUTOMATIC) ---
+
 rsi_last = float(data['RSI'].iloc[-1])
 alert_message = None
 
@@ -393,7 +393,7 @@ if enable_alerts:
 if alert_message:
     send_telegram_message(alert_message)
 
-# --- Export CSV ---
+
 csv = data.to_csv(index=True)
 st.download_button(
     label="📥 Export Data to CSV",
@@ -403,7 +403,7 @@ st.download_button(
     use_container_width=True
 )
 
-# --- Short-term Predictions ---
+
 with st.expander("🤖 AI Prediction (Pre-trained LSTM)", expanded=False):
     model_lstm, scaler = load_trained_model_and_scaler(ticker)
 
@@ -462,7 +462,7 @@ with st.expander("🤖 AI Prediction (Pre-trained LSTM)", expanded=False):
         except Exception as e:
             st.error(f"🚨 Error during prediction: {e}")
 
-# --- Future Prediction (Prophet) ---
+
 with st.expander("📈 Future Prediction (3-day history)", expanded=False):
     try:
         from prophet import Prophet
@@ -502,7 +502,7 @@ with st.expander("📈 Future Prediction (3-day history)", expanded=False):
     else:
         st.info("ℹ️ Prophet model not available.")
 
-# --- CryptoPanic News ---
+
 if enable_news:
     st.markdown("---")
     st.subheader("📰 CryptoPanic News")
@@ -518,7 +518,7 @@ if enable_news:
             </div>
             """, unsafe_allow_html=True)
 
-# --- Interactive chart ---
+
 st.subheader("📊 Interactive Chart (Zoom + Hover + Prediction)")
 
 fig = make_subplots(
@@ -596,7 +596,7 @@ st.plotly_chart(fig, use_container_width=True)
 st.markdown("---")
 st.caption("🔁 This app auto-refreshes every 60 seconds.")
 
-# --- JavaScript for sidebar icon ---
+
 st.markdown(
     """
     <style> 
@@ -636,7 +636,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- Enviar alertas globales en cada refresh ---
+
 if "global_alerts_sent" not in st.session_state:
     st.session_state.global_alerts_sent = False
 
@@ -644,7 +644,7 @@ if not st.session_state.global_alerts_sent:
     send_global_alerts()
     st.session_state.global_alerts_sent = True
 
-# --- DISCLAIMER ---
+
 st.markdown("---")
 st.markdown("## 🧾 Disclaimer")
 st.markdown("""
