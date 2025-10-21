@@ -483,11 +483,13 @@ with st.expander("📈 Future Prediction (3-day history)", expanded=False):
                     df_prophet.columns = ['ds', 'y']
                     df_prophet['ds'] = pd.to_datetime(df_prophet['ds']).dt.tz_localize(None)
 
+                   
                     prophet_model = Prophet(
                         daily_seasonality=True,
                         weekly_seasonality=True,
                         yearly_seasonality=False,
-                        changepoint_prior_scale=0.05
+                        changepoint_prior_scale=0.05,
+                        mcmc_samples=0  
                     )
                     prophet_model.fit(df_prophet)
 
@@ -500,6 +502,7 @@ with st.expander("📈 Future Prediction (3-day history)", expanded=False):
 
         except Exception as e:
             st.error(f"❌ Error in future prediction: {str(e)}")
+            st.error(traceback.format_exc())  
     else:
         st.info("ℹ️ Prophet model not available.")
 
