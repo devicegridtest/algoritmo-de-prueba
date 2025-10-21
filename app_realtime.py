@@ -1,4 +1,8 @@
 # app_realtime.py
+import os
+os.environ["STAN_BACKEND"] = "none"
+
+from prophet import Prophet
 import streamlit as st
 import numpy as np
 import pandas as pd
