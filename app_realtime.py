@@ -470,48 +470,36 @@ with st.expander("🤖 AI Prediction (Pre-trained LSTM)", expanded=False):
 
 # --- Future Prediction (Prophet) ---
 with st.expander("📈 Future Prediction (3-day history)", expanded=False):
+    # Prophet ya fue importado al inicio con STAN_BACKEND=none
     try:
-        # 👇 Solución clave: desactivar Stan backend antes de importar
-        import os
-        os.environ["STAN_BACKEND"] = "none"
-        from prophet import Prophet
-        model_available = True
+        with st.spinner("⏳ Loading historical data for prediction..."):
+            data_long = yf.download(ticker, period="30d", interval="1h")
+            if data_long.empty or len(data_long) < 20:
+                st.warning("⚠️ Not enough historical data to predict.")
+            else:
+                df_prophet = data_long[['Close']].reset_index()
+                df_prophet.columns = ['ds', 'y']
+                df_prophet['ds'] = pd.to_datetime(df_prophet['ds']).dt.tz_localize(None)
+
+                prophet_model = Prophet(
+                    daily_seasonality=True,
+                    weekly_seasonality=True,
+                    yearly_seasonality=False,
+                    changepoint_prior_scale=0.05,
+                    mcmc_samples=0
+                )
+                prophet_model.fit(df_prophet)
+
+                future_periods = {"6 hours": 6, "1 day": 24, "3 days": 72}
+                for name, hours in future_periods.items():
+                    future = prophet_model.make_future_dataframe(periods=hours, freq='H')
+                    forecast = prophet_model.predict(future)
+                    next_price = forecast['yhat'].iloc[-1]
+                    st.write(f"**{name}**: {format_price_dynamic(next_price)}")
+
     except Exception as e:
-        st.warning(f"⚠️ Prophet not available: {e}")
-        model_available = False
-
-    if model_available:
-        try:
-            with st.spinner("⏳ Loading historical data for prediction..."):
-                data_long = yf.download(ticker, period="30d", interval="1h")
-                if data_long.empty or len(data_long) < 20:
-                    st.warning("⚠️ Not enough historical data to predict.")
-                else:
-                    df_prophet = data_long[['Close']].reset_index()
-                    df_prophet.columns = ['ds', 'y']
-                    df_prophet['ds'] = pd.to_datetime(df_prophet['ds']).dt.tz_localize(None)
-
-                    prophet_model = Prophet(
-                        daily_seasonality=True,
-                        weekly_seasonality=True,
-                        yearly_seasonality=False,
-                        changepoint_prior_scale=0.05,
-                        mcmc_samples=0  # redundante, pero seguro
-                    )
-                    prophet_model.fit(df_prophet)
-
-                    future_periods = {"6 hours": 6, "1 day": 24, "3 days": 72}
-                    for name, hours in future_periods.items():
-                        future = prophet_model.make_future_dataframe(periods=hours, freq='H')
-                        forecast = prophet_model.predict(future)
-                        next_price = forecast['yhat'].iloc[-1]
-                        st.write(f"**{name}**: {format_price_dynamic(next_price)}")
-
-        except Exception as e:
-            st.error(f"❌ Error in future prediction: {str(e)}")
-            st.code(traceback.format_exc())
-    else:
-        st.info("ℹ️ Prophet model not available.")
+        st.error(f"❌ Error in future prediction: {str(e)}")
+        st.code(traceback.format_exc())
 
 # --- CryptoPanic News ---
 if enable_news:
