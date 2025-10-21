@@ -463,9 +463,13 @@ with st.expander("🤖 AI Prediction (Pre-trained LSTM)", expanded=False):
         except Exception as e:
             st.error(f"🚨 Error during prediction: {e}")
 
+
 # --- Future Prediction (Prophet) ---
 with st.expander("📈 Future Prediction (3-day history)", expanded=False):
     try:
+        # 👇 Solución clave: desactivar Stan backend antes de importar
+        import os
+        os.environ["STAN_BACKEND"] = "none"
         from prophet import Prophet
         model_available = True
     except Exception as e:
@@ -483,13 +487,12 @@ with st.expander("📈 Future Prediction (3-day history)", expanded=False):
                     df_prophet.columns = ['ds', 'y']
                     df_prophet['ds'] = pd.to_datetime(df_prophet['ds']).dt.tz_localize(None)
 
-                   
                     prophet_model = Prophet(
                         daily_seasonality=True,
                         weekly_seasonality=True,
                         yearly_seasonality=False,
                         changepoint_prior_scale=0.05,
-                        mcmc_samples=0  
+                        mcmc_samples=0  # redundante, pero seguro
                     )
                     prophet_model.fit(df_prophet)
 
@@ -502,7 +505,7 @@ with st.expander("📈 Future Prediction (3-day history)", expanded=False):
 
         except Exception as e:
             st.error(f"❌ Error in future prediction: {str(e)}")
-            st.error(traceback.format_exc())  
+            st.code(traceback.format_exc())
     else:
         st.info("ℹ️ Prophet model not available.")
 
