@@ -23,23 +23,18 @@ logging.basicConfig(
 )
 
 def hourly_alerts_background():
-    """Hilo que ejecuta send_global_alerts() cada hora en punto, sin bloquear Streamlit."""
     logging.info("🟢 Servicio de alertas iniciado (modo background Streamlit).")
-    
     while True:
         try:
             now = datetime.datetime.now()
             next_hour = (now + datetime.timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
             seconds_until_next = (next_hour - now).total_seconds()
-
             logging.info("🚀 Ejecutando send_global_alerts()...")
             send_global_alerts()
             logging.info("✅ Ejecución completada correctamente.")
-
         except Exception as e:
             logging.error(f"❌ Error en send_global_alerts(): {e}")
             logging.error(traceback.format_exc())
-
         logging.info(f"⏰ Esperando {int(seconds_until_next)} segundos hasta {next_hour.strftime('%H:%M')}.")
         time.sleep(seconds_until_next)
 
@@ -56,9 +51,30 @@ ALL_TICKERS = [
     "XRP-USD", "LTC-USD", "NEXA-USD", "NODL-USD"
 ]
 
+# --- For Telegram alerts (con detección de bloqueo en Nepal) ---
+def send_telegram_message(message: str):
+    try:
+        bot_token = st.secrets["telegram"]["BOT_TOKEN"]
+        chat_id = st.secrets["telegram"]["CHAT_ID"]
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"  # ✅ sin espacio
+        payload = {
+            "chat_id": chat_id,
+            "text": message,
+            "parse_mode": "HTML"
+        }
+        response = requests.post(url, data=payload, timeout=5)
+        # Detectar bloqueo explícito de NTA
+        if response.status_code == 403 or "restricted" in response.text.lower() or "blocked" in response.text.lower():
+            st.session_state.telegram_blocked = True
+            logging.warning("⚠️ Telegram bloqueado por NTA (Nepal).")
+    except Exception as e:
+        logging.error(f"❌ Error al enviar Telegram: {e}")
+        st.session_state.telegram_blocked = True
+
 # --- Función para enviar alertas globales ---
 def send_global_alerts():
-    """Revisa todas las monedas y envía alertas a Telegram."""
+    if st.session_state.get("telegram_blocked", False):
+        return
     for ticker in ALL_TICKERS:
         try:
             data = yf.download(ticker, period="1d", interval="1h")
@@ -110,28 +126,12 @@ def send_global_alerts():
                     f"{direction} Prediction Alert: {ticker} {direction} {abs(change_pct):.2f}%\n"
                     f"New prediction: {format_price_dynamic(pred_price)}"
                 )
-
         except Exception:
             pass
 
 # --- Auto refresh every 60s ---
 from streamlit_autorefresh import st_autorefresh
 st_autorefresh(interval=60000, limit=None, key="datarefresh")
-
-# --- For Telegram alerts (AUTOMATIC) ---
-def send_telegram_message(message: str):
-    try:
-        bot_token = st.secrets["telegram"]["BOT_TOKEN"]
-        chat_id = st.secrets["telegram"]["CHAT_ID"]
-        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"  # Corregido: sin espacio
-        payload = {
-            "chat_id": chat_id,
-            "text": message,
-            "parse_mode": "HTML"
-        }
-        requests.post(url, data=payload)
-    except Exception:
-        pass
 
 # --- Fetch CryptoPanic News ---
 def fetch_cryptopanic_news(ticker_symbol: str, limit: int = 3):
@@ -145,12 +145,10 @@ def fetch_cryptopanic_news(ticker_symbol: str, limit: int = 3):
             "NODL-USD": "NODL"
         }
         symbol = symbol_map.get(ticker_symbol, "BTC")
-
         url = f"https://cryptopanic.com/api/v1/posts/?auth_token={api_token}&currencies={symbol}&public=true"
         response = requests.get(url, timeout=10)
         if response.status_code != 200:
             return [{"title": "⚠️ Error: API limit reached or invalid token", "published_at": "", "url": "#"}]
-
         data = response.json()
         news_list = []
         for item in data.get("results", [])[:limit]:
@@ -283,33 +281,32 @@ def add_indicators(df):
     df.dropna(inplace=True)
     return df
 
-# --- Load PRE-TRAINED model and scaler ---
+# --- Load PRE-TRAINED model and scaler (soporta .keras y .h5) ---
 @st.cache_resource
 def load_trained_model_and_scaler(ticker):
     model_dir = "models"
-    model_path = os.path.join(model_dir, f"best_lstm_{ticker}.h5")
-    scaler_path = os.path.join(model_dir, f"scaler_{ticker}.pkl")
-    
-    if not os.path.exists(model_path) or not os.path.exists(scaler_path):
-        return None, None
-
-    try:
-        from tensorflow.keras.models import load_model
-        from tensorflow.keras import losses
-        model = load_model(model_path, compile=False)
-        model.compile(optimizer="adam", loss=losses.MeanSquaredError())
-        with open(scaler_path, "rb") as f:
-            scaler = pickle.load(f)
-        return model, scaler
-    except Exception as e:
-        st.warning(f"⚠️ Error loading model/scaler for {ticker}: {e}")
-        return None, None
+    for ext in [".keras", ".h5"]:
+        model_path = os.path.join(model_dir, f"best_lstm_{ticker}{ext}")
+        scaler_path = os.path.join(model_dir, f"scaler_{ticker}.pkl")
+        if os.path.exists(model_path) and os.path.exists(scaler_path):
+            try:
+                from tensorflow.keras.models import load_model
+                model = load_model(model_path)
+                with open(scaler_path, "rb") as f:
+                    scaler = pickle.load(f)
+                return model, scaler
+            except Exception as e:
+                st.warning(f"⚠️ Error loading model {model_path}: {e}")
+                continue
+    return None, None
 
 # --- State ---
 if 'data' not in st.session_state:
     st.session_state.data = None
 if 'last_best_prediction' not in st.session_state:
     st.session_state.last_best_prediction = 0.0
+if 'telegram_blocked' not in st.session_state:
+    st.session_state.telegram_blocked = False
 
 # --- Update data (for display) ---
 def update_data():
@@ -318,22 +315,18 @@ def update_data():
         if data.empty:
             st.error("❌ No data downloaded from Yahoo Finance.")
             st.stop()
-
         if isinstance(data.columns, pd.MultiIndex):
             data.columns = data.columns.get_level_values(0)
-
         if len(data) < 30:
             st.warning(f"⚠️ Too few data points ({len(data)}). Try period='5d' or '1mo'.")
             if st.session_state.data is not None:
                 return st.session_state.data
             else:
                 st.stop()
-
         data = add_indicators(data)
         if data.empty:
             st.error("❌ Data became empty after adding indicators. Try a longer period.")
             st.stop()
-
         return data
     except Exception as e:
         st.exception(e)
@@ -371,7 +364,7 @@ with st.container():
     col3.metric("🤖 Model", "Pre-trained LSTM" if load_trained_model_and_scaler(ticker)[0] else "Not available")
     st.markdown('</div>', unsafe_allow_html=True)
 
-# --- RSI Alerts + Telegram (AUTOMATIC) ---
+# --- RSI Alerts + Telegram ---
 rsi_last = float(data['RSI'].iloc[-1])
 alert_message = None
 
@@ -386,7 +379,10 @@ if enable_alerts:
         alert_message = f"✅ RSI Alert: {ticker} is OVERSOLD (RSI = {rsi_last:.2f})"
 
 if alert_message:
-    send_telegram_message(alert_message)
+    if not st.session_state.telegram_blocked:
+        send_telegram_message(alert_message)
+    else:
+        st.info("ℹ️ Telegram alerts are blocked in Nepal by NTA. Running in local mode only.")
 
 # --- Export CSV ---
 csv = data.to_csv(index=True)
@@ -401,7 +397,6 @@ st.download_button(
 # --- Short-term Predictions (LSTM) ---
 with st.expander("🤖 AI Prediction (Pre-trained LSTM)", expanded=False):
     model_lstm, scaler = load_trained_model_and_scaler(ticker)
-
     if model_lstm is None or scaler is None:
         st.warning(f"❌ No pre-trained model found for {ticker}. Please run `train_model.py` first.")
     else:
@@ -411,7 +406,6 @@ with st.expander("🤖 AI Prediction (Pre-trained LSTM)", expanded=False):
                 data_pred.columns = data_pred.columns.get_level_values(0)
             data_pred = add_indicators(data_pred)
             data_pred.dropna(inplace=True)
-            
             if len(data_pred) < 70:
                 st.warning("⚠️ Not enough data for prediction.")
             else:
@@ -422,22 +416,18 @@ with st.expander("🤖 AI Prediction (Pre-trained LSTM)", expanded=False):
                 ]
                 scaled_data = scaler.transform(data_pred[feature_cols])
                 seq_len = 60
-                
                 if len(scaled_data) >= seq_len:
                     last_sequence = scaled_data[-seq_len:].reshape(1, seq_len, len(feature_cols))
                     pred_scaled = model_lstm.predict(last_sequence, verbose=0)[0, 0]
                     dummy = np.zeros((1, len(feature_cols)))
                     dummy[0, 0] = pred_scaled
                     pred_price = scaler.inverse_transform(dummy)[0, 0]
-                    
                     change_pct_pred = ((pred_price - current_price) / current_price) * 100
                     st.subheader("Next Hour Prediction")
                     col1, col2 = st.columns(2)
                     col1.metric("Predicted Price", format_price_dynamic(pred_price))
                     col2.metric("Change", f"{change_pct_pred:.2f}%", delta=change_pct_pred, delta_color="normal")
-                    
                     st.session_state.best_prediction = float(pred_price)
-                    
                     if 'last_best_prediction' in st.session_state and st.session_state.last_best_prediction != 0:
                         last_pred = st.session_state.last_best_prediction
                         change = ((pred_price - last_pred) / last_pred) * 100
@@ -445,22 +435,65 @@ with st.expander("🤖 AI Prediction (Pre-trained LSTM)", expanded=False):
                             if change > 0:
                                 st.success(f"📈 Prediction ↑ {change:.2f}% → {format_price_dynamic(pred_price)}")
                                 st.balloons()
-                                pred_msg = f"📈 Prediction Alert: {ticker} ↑ {change:.2f}%\nNew prediction: {format_price_dynamic(pred_price)}"
-                                send_telegram_message(pred_msg)
+                                if not st.session_state.telegram_blocked:
+                                    pred_msg = f"📈 Prediction Alert: {ticker} ↑ {change:.2f}%\nNew prediction: {format_price_dynamic(pred_price)}"
+                                    send_telegram_message(pred_msg)
                             else:
                                 st.warning(f"📉 Prediction ↓ {change:.2f}% → {format_price_dynamic(pred_price)}")
-                                pred_msg = f"📉 Prediction Alert: {ticker} ↓ {change:.2f}%\nNew prediction: {format_price_dynamic(pred_price)}"
-                                send_telegram_message(pred_msg)
+                                if not st.session_state.telegram_blocked:
+                                    pred_msg = f"📉 Prediction Alert: {ticker} ↓ {change:.2f}%\nNew prediction: {format_price_dynamic(pred_price)}"
+                                    send_telegram_message(pred_msg)
                     st.session_state.last_best_prediction = pred_price
                 else:
                     st.warning("⚠️ Not enough data to form a 60-step sequence.")
         except Exception as e:
             st.error(f"🚨 Error during prediction: {e}")
 
-# --- Future Prediction (Prophet) REMOVED ---
-with st.expander("📈 Future Prediction (3-day history)", expanded=False):
-    st.info("🔮 Prophet-based forecasting is temporarily disabled due to compatibility issues in cloud environments. "
-            "Your LSTM model (1-hour prediction) remains fully active and optimized for crypto volatility.")
+# --- Future Prediction (Prophet) - MEJORADO PARA LOCAL ---
+with st.expander("📈 Future Prediction (Prophet - 3-day forecast)", expanded=False):
+    try:
+        from prophet import Prophet
+        with st.spinner("⏳ Loading historical data for Prophet..."):
+            data_long = yf.download(ticker, period="90d", interval="1h")
+            if data_long.empty or len(data_long) < 50:
+                st.warning("⚠️ Not enough historical data for Prophet (need >50 points).")
+            else:
+                df_prophet = data_long[['Close']].reset_index()
+                df_prophet.columns = ['ds', 'y']
+                df_prophet['ds'] = pd.to_datetime(df_prophet['ds']).dt.tz_localize(None)
+
+                prophet_model = Prophet(
+                    daily_seasonality=True,
+                    weekly_seasonality=True,
+                    yearly_seasonality=False,
+                    changepoint_prior_scale=0.05,
+                    seasonality_prior_scale=0.1,
+                    holidays_prior_scale=0.1,
+                    mcmc_samples=0,
+                    interval_width=0.80
+                )
+                prophet_model.fit(df_prophet)
+
+                future_periods = {"6 hours": 6, "1 day": 24, "3 days": 72}
+                st.subheader("🔮 Prophet Predictions")
+                for name, hours in future_periods.items():
+                    future = prophet_model.make_future_dataframe(periods=hours, freq='H')
+                    forecast = prophet_model.predict(future)
+                    next_price = forecast['yhat'].iloc[-1]
+                    lower = forecast['yhat_lower'].iloc[-1]
+                    upper = forecast['yhat_upper'].iloc[-1]
+                    st.write(f"**{name}**: {format_price_dynamic(next_price)} "
+                             f"(range: {format_price_dynamic(lower)} – {format_price_dynamic(upper)})")
+
+                if st.checkbox("📊 Show Prophet trend chart"):
+                    fig2 = prophet_model.plot(forecast)
+                    st.pyplot(fig2)
+
+    except ImportError:
+        st.error("❌ Prophet no está instalado. Ejecuta en terminal:\n`pip install prophet cmdstanpy`\n`python -c \"import cmdstanpy; cmdstanpy.install_cmdstan()\"`")
+    except Exception as e:
+        st.error(f"🚨 Error en Prophet: {str(e)}")
+        st.code(traceback.format_exc())
 
 # --- CryptoPanic News ---
 if enable_news:
@@ -480,7 +513,6 @@ if enable_news:
 
 # --- Interactive chart ---
 st.subheader("📊 Interactive Chart (Zoom + Hover + Prediction)")
-
 fig = make_subplots(
     rows=3, cols=1,
     shared_xaxes=True,
@@ -488,7 +520,6 @@ fig = make_subplots(
     row_heights=[0.6, 0.2, 0.2],
     specs=[[{"secondary_y": True}], [{"secondary_y": False}], [{"secondary_y": False}]]
 )
-
 candlestick = go.Candlestick(
     x=data.index,
     open=data['Open'],
@@ -500,16 +531,13 @@ candlestick = go.Candlestick(
     decreasing_line_color='red'
 )
 fig.add_trace(candlestick, row=1, col=1)
-
 fig.add_trace(go.Scatter(x=data.index, y=data['MA5'], name='MA5', line=dict(color='orange')), row=1, col=1)
 fig.add_trace(go.Scatter(x=data.index, y=data['MA10'], name='MA10', line=dict(color='blue')), row=1, col=1)
 fig.add_trace(go.Scatter(x=data.index, y=data['MA20'], name='MA20', line=dict(color='purple')), row=1, col=1)
 fig.add_trace(go.Scatter(x=data.index, y=data['EMA50'], name='EMA50', line=dict(color='cyan', dash='dot')), row=1, col=1)
-
 fig.add_hline(y=current_price, line_dash="dash", line_color="yellow", 
               annotation_text=f"Current: {format_price_dynamic(current_price)}", 
               annotation_position="top right", row=1, col=1)
-
 last_date = data.index[-1]
 fig.add_trace(go.Scatter(x=[last_date], y=[current_price], 
                          mode='markers+text',
@@ -517,7 +545,6 @@ fig.add_trace(go.Scatter(x=[last_date], y=[current_price],
                          text=[format_price_dynamic(current_price)],
                          textposition="top center",
                          name='Current Price'), row=1, col=1)
-
 if 'best_prediction' in st.session_state:
     best_pred = st.session_state.best_prediction
     future_date = data.index[-1] + pd.Timedelta(hours=1)
@@ -532,12 +559,10 @@ if 'best_prediction' in st.session_state:
                              text=[format_price_dynamic(best_pred)],
                              textposition="top center",
                              name='Prediction'), row=1, col=1)
-
 fig.add_trace(go.Bar(x=data.index, y=data['Volume'], name='Volume', marker_color='green'), row=2, col=1)
 fig.add_trace(go.Scatter(x=data.index, y=data['RSI'], name='RSI', line=dict(color='cyan')), row=3, col=1)
 fig.add_hline(y=70, line_dash="dash", line_color="red", row=3, col=1)
 fig.add_hline(y=30, line_dash="dash", line_color="green", row=3, col=1)
-
 fig.update_layout(
     title_text=f"{ticker} — Real-Time Monitoring",
     xaxis_rangeslider_visible=False,
@@ -550,56 +575,14 @@ fig.update_layout(
     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     margin=dict(l=20, r=20, t=30, b=20)
 )
-
 st.plotly_chart(fig, use_container_width=True)
 
 st.markdown("---")
 st.caption("🔁 This app auto-refreshes every 60 seconds.")
 
-# --- JavaScript for sidebar icon ---
-st.markdown(
-    """
-    <style> 
-    .neon-arrow {
-        font-size: 16px;
-        font-weight: bold;
-        color: #0ff;
-        text-shadow: 0 0 8px #0ff, 0 0 12px #0ff;
-        cursor: pointer;
-        padding: 8px;
-        border-radius: 4px;
-        transition: all 0.2s ease;
-    }
-    .neon-arrow:hover {
-        text-shadow: 0 0 12px #0ff, 0 0 20px #0ff;
-        transform: scale(1.1);
-    }
-      </style>
-    <script> 
-    const observer = new MutationObserver(() => {
-        const hamburger = document.querySelector('.css-1v0mbdj');
-        if (hamburger && !hamburger.classList.contains('neon-replaced')) {
-            hamburger.style.visibility = 'hidden';
-            hamburger.style.position = 'absolute';
-            hamburger.style.opacity = '0';
-            const neonArrow = document.createElement('span');
-            neonArrow.className = 'neon-arrow neon-replaced';
-            neonArrow.innerHTML = '>>';
-            neonArrow.onclick = () => { hamburger.click(); };
-            hamburger.parentNode.insertBefore(neonArrow, hamburger);
-            observer.disconnect();
-        }
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-    </script>
-    """,
-    unsafe_allow_html=True
-)
-
 # --- Enviar alertas globales en cada refresh ---
 if "global_alerts_sent" not in st.session_state:
     st.session_state.global_alerts_sent = False
-
 if not st.session_state.global_alerts_sent:
     send_global_alerts()
     st.session_state.global_alerts_sent = True
@@ -607,25 +590,4 @@ if not st.session_state.global_alerts_sent:
 # --- DISCLAIMER ---
 st.markdown("---")
 st.markdown("## 🧾 Disclaimer")
-st.markdown("""... 
-           This disclaimer (“Disclaimer”) applies to the use of the service, algorithm, web application, or platform accessible at **[algoritmo-de-prueba-6kfppv5cggvmkxzkxvrr5s.streamlit.app]** (hereinafter referred to as the “Service”).
-### 1. Informational / Testing Purpose
-The Service is provided solely for **testing**, **demonstration**, **research**, or **informational purposes**, and **does not guarantee accuracy, completeness, or suitability** for any specific purpose. The results, predictions, suggestions, or analyses generated by the algorithm should be considered **indicative only** and not as definitive advice.
-### 2. No Professional Advice
-Nothing in the Service should be construed as **legal, medical, financial, accounting, or any other type of professional advice**. Users should not make significant decisions based solely on the output of the algorithm without consulting qualified professionals in the corresponding field.
-### 3. No Warranties
-The Service is provided “as is” and “as available,” without any warranties of any kind, either express or implied, including but not limited to **warranties of merchantability, fitness for a particular purpose, accuracy, or non-infringement** of third-party rights.
-### 4. Limitation of Liability
-In no event shall the providers of the Service (developers, owners, operators) be liable for **any direct, indirect, incidental, special, punitive, or consequential damages**, including but not limited to loss of profits, data, reputation, or any other loss or damage, even if advised of the possibility of such damages, arising from the use or inability to use the Service.
-### 5. Data Reliability / User Inputs
-The results depend on the **quality, completeness, and accuracy of the data** or parameters entered by the user. It is not guaranteed that the algorithm is immune to errors, inconsistencies, or biases inherent in the input data or the model used.
-### 6. Changes, Interruptions, and Modifications
-The Service provider reserves the right to **modify, suspend, or discontinue** the Service, in whole or in part, temporarily or permanently, with or without notice. The provider shall not be liable for any damages resulting from such modifications or interruptions.
-### 7. Intellectual Property and Licenses
-Unless expressly stated otherwise, all **rights, titles, patents, copyrights, trademarks, and other intellectual property rights** related to the algorithm, source code, documentation, and other components are the exclusive property of the Service provider or its licensors.
-### 8. Privacy and Data Protection
-Any data entered by users will be subject to the **privacy policy and terms of use** applicable to the Service. The user declares that they possess the necessary rights to the data they provide and assume full responsibility for its use.
-### 9. Jurisdiction and Governing Law
-This Disclaimer shall be governed by and construed in accordance with the laws of the **United States**, without regard to its conflict of law provisions. Any dispute related to this Disclaimer shall be submitted to the exclusive jurisdiction of the **competent courts of the State of California**.
-### 10. User Acceptance
-By using the Service, the user **expressly accepts the terms** of this Disclaimer. If the user does not agree with any of these terms, they must **refrain from using the Service**.  ...""", unsafe_allow_html=True)
+st.markdown("""... (tu disclaimer original) ...""", unsafe_allow_html=True)
